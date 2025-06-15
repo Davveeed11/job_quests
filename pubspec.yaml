@@ -39,6 +39,10 @@ dependencies:
   firebase_analytics: ^11.4.6
   provider: ^6.1.5
   cloud_firestore: ^5.6.8
+  shared_preferences: ^2.5.3
+  device_info_plus: ^11.4.0
+  flutter_secure_storage: ^9.2.4
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -50,6 +54,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+
+  # This package is used to generate launcher icons for Android and iOS.
+  # It is placed under dev_dependencies because it's a development tool, not a runtime dependency.
+  flutter_launcher_icons: "^0.14.4" # MOVED TO DEV_DEPENDENCIES
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -63,9 +71,10 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    # This line includes all assets within the 'lib/assets/' folder.
+    # Make sure your logo image (e.g., job_quest_logo.png) is inside this directory.
+    - lib/assets/ 
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -91,4 +100,14 @@ flutter:
   #         weight: 700
   #
   # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+  # see https://dev.flutter.dev/guides/assets-and-images/assets-and-images#from-packages
+
+# Configuration for flutter_launcher_icons package.
+# This block must be at the top level of pubspec.yaml, aligned with 'name', 'dependencies', etc.
+flutter_icons:
+  android: "launcher_icon"
+  ios: "app_icon"
+  # This path points to your logo image, relative to the project root.
+  # Ensure 'job_quest_logo.png' is located in 'lib/assets/' as per your assets configuration.
+  image_path: "lib/assets/job_quests.png" 
+  min_sdk_android: 21 # Required for adaptive icons (Android 8.0+), ensure your project's minSdkVersion is at least 21
