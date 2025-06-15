@@ -1,5 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore if you use it directly here, though MyAuthProvider handles user docs
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firestore if you use it directly here, though MyAuthProvider handles user docs
 
 class AuthRepoImpl {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -12,7 +11,7 @@ class AuthRepoImpl {
       );
     } on FirebaseAuthException catch (e) {
       // Re-throw specific FirebaseAuthException to be handled by the provider
-      throw e;
+      rethrow;
     } catch (e) {
       // Generic error for unexpected issues
       throw Exception('Failed to sign in: $e');

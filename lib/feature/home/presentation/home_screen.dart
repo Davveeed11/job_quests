@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:my_job_quest/feature/auth/presentation/manager/my_auth_provider.dart';
 import 'package:my_job_quest/feature/core/theme/theme_provider.dart';
 import 'package:my_job_quest/feature/home/presentation/screens/saved_jobs_screen.dart';
-import 'package:my_job_quest/feature/profile/presentation/screen/settings_screen.dart';
 import 'package:my_job_quest/feature/skills/presentation/screens/job_posting_screen.dart';
 import 'package:provider/provider.dart';
 import 'dart:async'; // For StreamSubscription
 import 'package:cloud_firestore/cloud_firestore.dart'; // For QueryDocumentSnapshot
 
+import 'package:my_job_quest/feature/profile/presentation/screen/settings_screen.dart'; // Import SettingsScreen
+
+// Import widgets
 import 'package:my_job_quest/feature/home/presentation/widget/job_card.dart';
 import 'package:my_job_quest/feature/home/presentation/widget/category_card.dart';
 
@@ -25,12 +27,16 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<User?>? _authStateChangesSubscription;
 
   int _selectedIndex = 0;
+
+  // IMPORTANT: _pages must be a getter or initialized in initState if it depends on context
   List<Widget> get _pages {
     return [
-      _buildHomeContent(context),
-      const Center(child: Text('Search Screen Content Coming Soon!')),
+      _buildHomeContent(context), // Your original Home screen content
+      const Center(
+        child: Text('Search Screen Content Coming Soon!'),
+      ), // Placeholder for Search
       const SavedJobsScreen(), // Your Saved Jobs Screen
-      const SettingsScreen(), // Placeholder for Profile
+      const SettingsScreen(), // Your Settings Screen
     ];
   }
 
@@ -43,63 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
     {'name': 'Healthcare', 'icon': Icons.local_hospital},
     {'name': 'Education', 'icon': Icons.school},
     {'name': 'Sales', 'icon': Icons.storefront},
-  ];
-
-  final List<Map<String, dynamic>> _recommendedJobs = [
-    {
-      'jobId': 'rec_flutter_1',
-      'jobTitle': 'Senior Flutter Developer',
-      'company': 'Tech Solutions Inc.',
-      'location': 'Remote',
-      'salary': '\$120K - \$150K',
-      'jobType': 'Full-time',
-      'logoChar': 'T',
-    },
-    {
-      'jobId': 'rec_ux_2',
-      'jobTitle': 'UX Designer',
-      'company': 'Creative Minds Studio',
-      'location': 'New York, NY',
-      'salary': '\$90K - \$110K',
-      'jobType': 'Full-time',
-      'logoChar': 'C',
-    },
-    {
-      'jobId': 'rec_data_3',
-      'jobTitle': 'Data Analyst',
-      'company': 'Quant Insights LLC',
-      'location': 'Austin, TX',
-      'salary': '\$70K - \$90K',
-      'jobType': 'Hybrid',
-      'logoChar': 'Q',
-    },
-    {
-      'jobId': 'rec_pm_4',
-      'jobTitle': 'Product Manager',
-      'company': 'Innovate Corp.',
-      'location': 'San Francisco, CA',
-      'salary': '\$130K - \$160K',
-      'jobType': 'Full-time',
-      'logoChar': 'I',
-    },
-    {
-      'jobId': 'rec_marketing_5',
-      'jobTitle': 'Digital Marketing Specialist',
-      'company': 'Global Reach Media',
-      'location': 'Remote',
-      'salary': '\$60K - \$80K',
-      'jobType': 'Contract',
-      'logoChar': 'G',
-    },
-    {
-      'jobId': 'rec_cloud_6',
-      'jobTitle': 'Cloud Architect',
-      'company': 'Azure Solutions',
-      'location': 'Seattle, WA',
-      'salary': '\$140K - \$170K',
-      'jobType': 'Full-time',
-      'logoChar': 'A',
-    },
   ];
 
   String getTimeOfDayGreeting() {
@@ -119,9 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _initializeUserName();
-
-    // REMOVED: _pages initialization from initState, as it's now a getter.
-
     _authStateChangesSubscription = FirebaseAuth.instance
         .authStateChanges()
         .listen((User? user) {
@@ -163,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Stack(
       children: [
+        // Custom Header Background
         Positioned(
           top: 0,
           left: 0,
@@ -185,6 +132,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+
+        // Floating background shapes
         Positioned(
           top: -MediaQuery.of(context).size.width * 0.4,
           left: -MediaQuery.of(context).size.width * 0.2,
@@ -209,6 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+
+        // Fixed Search Bar
         Positioned(
           top: searchBarTopPosition,
           left: searchBarHorizontalPadding,
@@ -277,6 +228,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+
+        // Custom Header Content
         Positioned(
           top: 0,
           left: 0,
@@ -466,7 +419,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: _jobCategories.length,
                     itemBuilder: (context, index) {
                       final category = _jobCategories[index];
-                      // Using the imported CategoryCard
                       return SizedBox(
                         width: 180.0, // Example width, adjust as needed
                         child: CategoryCard(
@@ -478,6 +430,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+
+                // Recommended for you section - Now powered by StreamBuilder
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
@@ -512,18 +466,64 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 220, // Height matching JobCard
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    itemCount: _recommendedJobs.length,
-                    itemBuilder: (context, index) {
-                      final job = _recommendedJobs[index];
-                      // Using the imported JobCard
-                      return JobCard(job: job, jobId: job['jobId'] as String);
+                  child: StreamBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
+                    stream: authProvider
+                        .recommendedJobsStream, // Use the real recommended jobs stream
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            'Error loading recommended jobs: ${snapshot.error}',
+                          ),
+                        );
+                      }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        String message = 'No recommended jobs found.';
+                        if (authProvider.state.user != null &&
+                            authProvider.state.skillRank.isEmpty) {
+                          message =
+                              'Please set your skill rank in Settings to see recommendations!';
+                        }
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Text(
+                              message,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onBackground.withOpacity(0.6),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      }
+
+                      final recommendedJobsDocs = snapshot.data!;
+                      return ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        itemCount: recommendedJobsDocs.length,
+                        itemBuilder: (context, index) {
+                          final jobDoc = recommendedJobsDocs[index];
+                          final jobData = jobDoc.data();
+                          return JobCard(
+                            job: jobData,
+                            jobId: jobDoc.id, // Pass the actual document ID
+                          );
+                        },
+                      );
                     },
                   ),
                 ),
                 const SizedBox(height: 24),
+
+                // Community Job Board section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
@@ -560,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   List<QueryDocumentSnapshot<Map<String, dynamic>>>
                 >(
                   stream: authProvider
-                      .allJobsDocsStream, // Assuming this stream exists in MyAuthProvider
+                      .allJobsDocsStream, // Use the stream for all jobs
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -585,11 +585,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemCount: communityJobsDocs.length,
                         itemBuilder: (context, index) {
                           final jobDoc = communityJobsDocs[index];
-                          // Using the imported JobCard
+                          final jobData = jobDoc.data();
                           return JobCard(
-                            job: jobDoc.data(),
-                            jobId:
-                                jobDoc.id, // Pass the actual document ID here
+                            job: jobData,
+                            jobId: jobDoc.id, // Pass the actual document ID
                           );
                         },
                       ),
@@ -609,7 +608,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.background,
-      body: _pages[_selectedIndex], // Access the _pages getter here
+      body: _pages[_selectedIndex], // Display the selected page
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -636,16 +635,15 @@ class _HomeScreenState extends State<HomeScreen> {
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
             BottomNavigationBarItem(
-              // NEW: Saved Jobs Item
               icon: Icon(Icons.bookmark_outline),
               label: 'Saved',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: 'Profile',
+              icon: Icon(Icons.settings_outlined), // Changed icon
+              label: 'Settings', // Changed label
             ),
           ],
-          currentIndex: _selectedIndex,
+          currentIndex: _selectedIndex, // Control the active tab
           selectedItemColor: Theme.of(context).colorScheme.primary,
           unselectedItemColor: Theme.of(
             context,
@@ -654,23 +652,15 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() {
               _selectedIndex = index;
             });
-            if (index == 1 || index == 3) {
-              String screenName;
-              switch (index) {
-                case 1:
-                  screenName = 'Search';
-                  break;
-                case 3:
-                  screenName = 'Profile';
-                  break;
-                default:
-                  screenName = '';
-                  break;
-              }
+            if (index == 1) {
+              // Only show snackbar for Search
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$screenName Screen Coming Soon!')),
+                const SnackBar(
+                  content: Text('Search Screen Content Coming Soon!'),
+                ),
               );
             }
+            // For Saved and Settings, the _pages[_selectedIndex] handles navigation directly
           },
         ),
       ),

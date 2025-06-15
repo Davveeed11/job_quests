@@ -14,31 +14,48 @@ class JobDetailScreen extends StatefulWidget {
 }
 
 class _JobDetailScreenState extends State<JobDetailScreen> {
+  // Local state to track bookmark status, updated by stream listener
+  bool _isBookmarked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenToBookmarkStatus();
+  }
+
+  // Listens to the auth provider's saved jobs stream to update bookmark status
+  void _listenToBookmarkStatus() {
+    final authProvider = Provider.of<MyAuthProvider>(context, listen: false);
+    if (authProvider.state.user != null && widget.jobId != null) {
+      authProvider.getSavedJobsStream().listen((savedJobIds) {
+        if (mounted) {
+          setState(() {
+            _isBookmarked = savedJobIds.contains(widget.jobId);
+          });
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<MyAuthProvider>(context);
 
-    // Safely extract job details, providing fallback values
+    // Safely extract job details, providing fallback values and handling types
     final String jobTitle =
         widget.job['jobTitle'] ??
         widget.job['title'] ??
         'Job Title Not Provided';
     final String company =
-        widget.job['company'] ??
-        widget.job['postedByName'] ??
-        'Company Unknown';
+        widget.job['company'] ?? widget.job['posterName'] ?? 'Company Unknown';
 
-    // FIX: Handle location as List<dynamic> or String
+    // Handle 'location' which might be String or List<dynamic>
     final dynamic rawLocation = widget.job['location'];
     final String location;
     if (rawLocation is List) {
-      location = rawLocation
-          .map((e) => e.toString())
-          .join(', '); // Join list elements
+      location = rawLocation.map((e) => e.toString()).join(', ');
     } else {
-      location =
-          rawLocation as String? ??
-          'Remote / Anywhere'; // Fallback to String or default
+      location = rawLocation as String? ?? 'Remote / Anywhere';
     }
 
     final String salary = widget.job['salary'] ?? 'Negotiable';
@@ -48,15 +65,29 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
         widget.job['jobDescription'] ?? 'No description provided.';
     final String logoChar =
         widget.job['logoChar'] ??
-        widget.job['logo_char'] ??
         (company.isNotEmpty ? company[0].toUpperCase() : '?');
+    final String difficultyRank =
+        widget.job['difficultyRank'] ??
+        'Not specified'; // Added difficulty rank
+
+    // Handle 'requiredSkills' which might be String or List<dynamic>
+    final dynamic rawRequiredSkills = widget.job['requiredSkills'];
+    final List<String> requiredSkills;
+    if (rawRequiredSkills is List) {
+      requiredSkills = rawRequiredSkills.map((e) => e.toString()).toList();
+    } else if (rawRequiredSkills is String && rawRequiredSkills.isNotEmpty) {
+      requiredSkills = rawRequiredSkills
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    } else {
+      requiredSkills = [];
+    }
 
     // For bookmarking, prioritize widget.jobId, then 'id', then 'jobId' from map
     final String? currentJobId =
         widget.jobId ?? widget.job['id'] ?? widget.job['jobId'];
-    final bool isBookmarked =
-        currentJobId != null &&
-        authProvider.state.bookmarkedJobIds.contains(currentJobId);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.background,
@@ -77,20 +108,25 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           if (currentJobId != null)
             IconButton(
               icon: Icon(
-                isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                color: isBookmarked
-                    ? Theme.of(context).colorScheme.onPrimary
-                    : Colors.white70,
+                _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                color: _isBookmarked
+                    ? Theme.of(context)
+                          .colorScheme
+                          .onPrimary // Bookmarked color
+                    : Colors.white70, // Unbookmarked color
               ),
-              tooltip: isBookmarked ? 'Unsave Job' : 'Save Job',
-              onPressed: () {
-                if (isBookmarked) {
-                  authProvider.removeBookmark(currentJobId);
+              tooltip: _isBookmarked ? 'Unsave Job' : 'Save Job',
+              onPressed: () async {
+                if (_isBookmarked) {
+                  await authProvider.removeBookmark(currentJobId);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Unsaved "$jobTitle"')),
                   );
                 } else {
-                  authProvider.addBookmark(currentJobId);
+                  await authProvider.addBookmark(
+                    currentJobId,
+                    widget.job,
+                  ); // Pass the full job data
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(SnackBar(content: Text('Saved "$jobTitle"')));
@@ -112,12 +148,12 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                     context,
                   ).colorScheme.secondary.withOpacity(0.15),
                   foregroundColor: Theme.of(context).colorScheme.secondary,
-                  radius: 24,
+                  radius: 28, // Slightly larger avatar
                   child: Text(
                     logoChar,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 20,
+                      fontSize: 22,
                     ),
                   ),
                 ),
@@ -151,17 +187,61 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Job Metadata (Location, Type, Salary)
+            // Job Metadata (Location, Type, Salary, Difficulty Rank)
             Wrap(
-              spacing: 20.0,
+              spacing: 12.0, // Reduced spacing
               runSpacing: 10.0,
               children: [
                 _buildInfoChip(context, Icons.location_on, location),
                 _buildInfoChip(context, Icons.work_outline, jobType),
                 _buildInfoChip(context, Icons.attach_money, salary),
+                _buildInfoChip(
+                  context,
+                  Icons.bar_chart,
+                  'Difficulty: $difficultyRank',
+                ), // Difficulty Rank chip
               ],
             ),
             const SizedBox(height: 32),
+
+            // Required Skills Section (NEW)
+            if (requiredSkills.isNotEmpty) ...[
+              Text(
+                'Required Skills',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onBackground,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 8.0,
+                children: requiredSkills
+                    .map(
+                      (skill) => Chip(
+                        label: Text(skill),
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.secondary.withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: Theme.of(context).colorScheme.secondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 32),
+            ],
 
             // Job Description Header
             Text(
@@ -200,8 +280,6 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 duration: Duration(seconds: 3),
               ),
             );
-            // You might want to navigate back or to a confirmation screen here
-            // Navigator.pop(context);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.primary,
@@ -240,11 +318,15 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
         children: [
           Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 8),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+          Flexible(
+            // Use Flexible to prevent overflow if text is too long
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+              ),
+              overflow: TextOverflow.ellipsis, // Add ellipsis for long text
             ),
           ),
         ],
