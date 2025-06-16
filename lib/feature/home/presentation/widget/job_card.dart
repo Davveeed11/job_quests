@@ -118,10 +118,10 @@ class _JobCardState extends State<JobCard> {
             );
           },
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(12.0),
             // *** REMOVED: The inner SizedBox that was here previously, as it's now redundant ***
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
