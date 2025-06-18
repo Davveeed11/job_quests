@@ -1,42 +1,71 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthState {
+  // ---------------------------------------------------------------------------
+  // 1. Authentication & User Session State
+  //    (Fields directly related to user login status and basic credentials)
+  // ---------------------------------------------------------------------------
   String email = '';
   String password = '';
-  String name = '';
-  String confirmPassword = '';
+  String name = ''; // User's display name, often part of auth context
+  String confirmPassword = ''; // For registration/password confirmation
+  String? currentDeviceId; // Unique ID for the current device
+
+  User? user; // The Firebase User object, representing the authenticated user
+
+  // ---------------------------------------------------------------------------
+  // 2. User Profile State
+  //    (Detailed user information, separate from core authentication)
+  // ---------------------------------------------------------------------------
   String skillRank = '';
-  bool hasSkillRank = false;
-  bool profileLoaded = false;
-  // These are already initialized as mutable empty lists at the field level
-  List<String> bookmarkedJobIds = [];
-  String? currentDeviceId;
+  bool hasSkillRank = false; // Indicates if a skill rank has been set
+  bool profileLoaded = false; // Status of whether the user profile has been fetched
 
-  User? user;
-
-  // Fields for Job Posting
-  String jobTitle = '';
-  String jobDescription = '';
-  String jobDifficultyRank = '';
-  String company = '';
-  String location = '';
-  String salary = '';
-  String jobType = '';
-  String requiredSkills = '';
-
-  // Fields for User's Preferences (for recommendations)
+  // User's General Skills (e.g., "Flutter", "Backend", "UI/UX")
   List<String> userSkills = [];
+  // User's Preferred Job Locations
   List<String> preferredLocations = [];
+  // User's Preferred Job Types (e.g., "Full-time", "Contract", "Remote")
   List<String> preferredJobTypes = [];
 
-  // For caching last fetched preferences for recommended jobs stream optimization
+  // ---------------------------------------------------------------------------
+  // 3. Job Posting Form State
+  //    (Fields representing the data for a new job listing being created)
+  // ---------------------------------------------------------------------------
+  String jobTitle = '';
+  String jobDescription = '';
+  String jobDifficultyRank = ''; // E-SSS rank for the job being posted
+  String company = '';
+  String location = ''; // Location for the job posting
+  String salary = '';
+  String jobType = ''; // Type for the job posting
+  String requiredSkills = ''; // Comma-separated string of skills for the job
+
+  // ---------------------------------------------------------------------------
+  // 4. Job Search/Recommendation Optimization State
+  //    (Internal cache to optimize stream updates for job recommendations)
+  // ---------------------------------------------------------------------------
   List<String> lastFetchedPreferredLocations = [];
   List<String> lastFetchedPreferredJobTypes = [];
   String lastFetchedSkillRank = '';
 
+  // ---------------------------------------------------------------------------
+  // 5. Bookmarking State
+  //    (List of IDs for jobs bookmarked by the current user)
+  // ---------------------------------------------------------------------------
+  List<String> bookmarkedJobIds = [];
+
+  // ---------------------------------------------------------------------------
+  // 6. General UI/Operation State
+  //    (Flags for loading indicators and error messages across various operations)
+  // ---------------------------------------------------------------------------
   bool isLoading = false;
   String errorMessage = '';
 
+  // ---------------------------------------------------------------------------
+  // 7. Constructor and Initializer List
+  //    (Initializes all fields, ensuring mutable lists are created properly)
+  // ---------------------------------------------------------------------------
   AuthState({
     this.email = '',
     this.password = '',
@@ -45,9 +74,7 @@ class AuthState {
     this.skillRank = '',
     this.hasSkillRank = false,
     this.profileLoaded = false,
-    // FIX THESE: Remove `const` or ensure a new mutable list is used
-    // Best practice is to use a nullable parameter, and then initialize in the initializer list.
-    List<String>? bookmarkedJobIds, // Make it nullable
+    List<String>? bookmarkedJobIds, // Make it nullable for safe initialization
     this.currentDeviceId,
     this.user,
     this.jobTitle = '',
@@ -58,19 +85,20 @@ class AuthState {
     this.salary = '',
     this.jobType = '',
     this.requiredSkills = '',
-    List<String>? userSkills, // Make it nullable
-    List<String>? preferredLocations, // Make it nullable
-    List<String>? preferredJobTypes, // Make it nullable
+    List<String>? userSkills, // Make it nullable for safe initialization
+    List<String>? preferredLocations, // Make it nullable for safe initialization
+    List<String>? preferredJobTypes, // Make it nullable for safe initialization
     List<String>? lastFetchedPreferredLocations, // Make it nullable
     List<String>? lastFetchedPreferredJobTypes, // Make it nullable
     this.lastFetchedSkillRank = '',
     this.isLoading = false,
     this.errorMessage = '',
   }) : // Initialize the lists in the initializer list to ensure mutability
-       bookmarkedJobIds = bookmarkedJobIds ?? [],
-       userSkills = userSkills ?? [],
-       preferredLocations = preferredLocations ?? [],
-       preferredJobTypes = preferredJobTypes ?? [],
-       lastFetchedPreferredLocations = lastFetchedPreferredLocations ?? [],
-       lastFetchedPreferredJobTypes = lastFetchedPreferredJobTypes ?? [];
+  // If a list parameter is null, an empty mutable list is assigned.
+        bookmarkedJobIds = bookmarkedJobIds ?? [],
+        userSkills = userSkills ?? [],
+        preferredLocations = preferredLocations ?? [],
+        preferredJobTypes = preferredJobTypes ?? [],
+        lastFetchedPreferredLocations = lastFetchedPreferredLocations ?? [],
+        lastFetchedPreferredJobTypes = lastFetchedPreferredJobTypes ?? [];
 }

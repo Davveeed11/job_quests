@@ -8,15 +8,26 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:my_job_quest/feature/auth/data/auth_repo_impl.dart';
+// NOTE: Assuming this path is correct for your AuthState class.
+// Typically, state classes are in 'presentation/state/' folder.
 import 'package:my_job_quest/feature/auth/presentation/manager/auth_state.dart';
 
 class MyAuthProvider extends ChangeNotifier {
+  // ---------------------------------------------------------------------------
+  // 1. Dependencies & Initialization
+  // ---------------------------------------------------------------------------
+
   final AuthRepoImpl _authRepo = AuthRepoImpl();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   AuthState _state = AuthState();
   AuthState get state => _state;
+
+  // ---------------------------------------------------------------------------
+  // 2. Skill Rank Definition & Helper Methods
+  //    (Used for job recommendations)
+  // ---------------------------------------------------------------------------
 
   // Define the order of skill/difficulty ranks for comparison
   // Lower index means higher/harder rank
@@ -31,7 +42,8 @@ class MyAuthProvider extends ChangeNotifier {
     'E',
   ];
 
-  // --- REVISED HELPER for more focused recommendations ---
+  // Helper function to calculate acceptable job difficulty ranks based on user's skill rank.
+  // It determines a range (1 rank above to 2 ranks below) from the user's skill.
   List<String> _getAcceptableDifficultyRanks(String userSkillRank) {
     // Find the index of the user's primary rank (e.g., 'A' from 'A Rank')
     final int userRankIndex = _rankOrder.indexOf(userSkillRank.split(' ')[0]);
@@ -42,6 +54,7 @@ class MyAuthProvider extends ChangeNotifier {
     }
 
     // Define the range: 1 rank above to 2 ranks below the user's rank.
+    // clamp() ensures the index stays within valid bounds of _rankOrder.
     final int startIndex = (userRankIndex - 1).clamp(0, _rankOrder.length - 1);
     final int endIndex = (userRankIndex + 3).clamp(
       0,
@@ -54,16 +67,15 @@ class MyAuthProvider extends ChangeNotifier {
       endIndex,
     );
 
-    // Example: User is 'A' (index 3).
-    // startIndex = (3 - 1) = 2.
-    // endIndex = (3 + 3) = 6.
-    // Resulting list will be from index 2 up to (but not including) index 6:
-    // ['S', 'A', 'B', 'C'].
-
     return acceptableRanks;
   }
 
-  // --- Stream for ALL job postings, returning QueryDocumentSnapshot to include doc.id ---
+  // ---------------------------------------------------------------------------
+  // 3. Job Listing Streams
+  //    (Provide data for community jobs and recommended jobs)
+  // ---------------------------------------------------------------------------
+
+  // Stream for ALL job postings, returning QueryDocumentSnapshot to include doc.id.
   Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
   get allJobsDocsStream {
     return _firestore
@@ -73,8 +85,8 @@ class MyAuthProvider extends ChangeNotifier {
         .map((snapshot) => snapshot.docs);
   }
 
-  // Helper stream to map QueryDocumentSnapshot to Map<String, dynamic> for easier consumption
-  // This stream prepares data for HomeScreen's Community Jobs section
+  // Helper stream to map QueryDocumentSnapshot to Map<String, dynamic> for easier consumption.
+  // This stream prepares data for HomeScreen's Community Jobs section.
   Stream<List<Map<String, dynamic>>> get communityJobsStream {
     return allJobsDocsStream.map((docs) {
       return docs.map((doc) {
@@ -84,7 +96,7 @@ class MyAuthProvider extends ChangeNotifier {
           'jobId': doc.id, // Ensure jobId is always available
           ...data,
           'company':
-              data['company'] ??
+          data['company'] ??
               (data['posterName'] ?? 'Community Post').toString(),
           'logoChar': (data['company'] as String?)?.isNotEmpty == true
               ? (data['company'] as String)[0].toUpperCase()
@@ -98,13 +110,13 @@ class MyAuthProvider extends ChangeNotifier {
           'salary': data['salary'] ?? 'Negotiable',
           'jobType': data['jobType'] ?? 'Full-time',
           'difficultyRank':
-              data['jobDifficultyRank'] ??
+          data['jobDifficultyRank'] ??
               'Not specified', // Ensuring this key is set
           'jobDescription': data['jobDescription'] ?? '',
           'requiredSkills': (data['requiredSkills'] is List)
               ? (data['requiredSkills'] as List)
-                    .map((e) => e.toString())
-                    .join(', ')
+              .map((e) => e.toString())
+              .join(', ')
               : data['requiredSkills'] as String? ?? '',
         };
         return processedData;
@@ -112,10 +124,11 @@ class MyAuthProvider extends ChangeNotifier {
     });
   }
 
-  // --- REVISED: Stream for Recommended Jobs with primary Firestore filter and secondary client-side filtering ---
+  // REVISED: Stream for Recommended Jobs.
+  // It now depends ONLY on the user's skill rank, filtering out location and job type preferences.
   Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
   get recommendedJobsStream {
-    // ===== START DEBUGGING =====
+    // --- START DEBUGGING ---
     print('--- Checking recommendedJobsStream ---');
 
     final user = FirebaseAuth.instance.currentUser;
@@ -125,11 +138,13 @@ class MyAuthProvider extends ChangeNotifier {
       if (!_state.profileLoaded) print('-> User profile is not loaded yet.');
       if (_state.skillRank.isEmpty) print('-> User skill rank is empty.');
       print('------------------------------------');
-      return Stream.value([]);
+      return Stream.value([]); // Return an empty stream if conditions not met
     }
 
     print('DEBUG: User is logged in and profile is loaded.');
     print('DEBUG: User Skill Rank: "${_state.skillRank}"');
+    // Debug info for preferred locations/job types are kept for context,
+    // but they are no longer used for filtering in this stream.
     print('DEBUG: User Preferred Locations: ${_state.preferredLocations}');
     print('DEBUG: User Preferred Job Types: ${_state.preferredJobTypes}');
 
@@ -144,7 +159,7 @@ class MyAuthProvider extends ChangeNotifier {
         'DEBUG: Stream cancelled. No acceptable job ranks could be calculated.',
       );
       print('------------------------------------');
-      return Stream.value([]);
+      return Stream.value([]); // Return an empty stream if no ranks
     }
 
     print('DEBUG: Querying Firestore for jobs with those ranks...');
@@ -155,66 +170,68 @@ class MyAuthProvider extends ChangeNotifier {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-          print(
-            'DEBUG: Firestore returned ${snapshot.docs.length} documents matching the rank criteria.',
-          );
+      print(
+        'DEBUG: Firestore returned ${snapshot.docs.length} documents matching the rank criteria.',
+      );
 
-          List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredDocs = [];
-          for (var doc in snapshot.docs) {
-            final data = doc.data();
-            print('---');
-            print(
-              'DEBUG: Evaluating Job ID: ${doc.id} | Title: ${data['jobTitle']}',
-            );
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredDocs = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        print('---');
+        print(
+          'DEBUG: Evaluating Job ID: ${doc.id} | Title: ${data['jobTitle']}',
+        );
 
-            final List<String> jobLocations = (data['location'] is List)
-                ? List<String>.from(data['location'])
-                : [data['location']?.toString() ?? ''];
-            final String jobType = data['jobType'] as String? ?? '';
+        // The following lines related to job locations and job types
+        // are kept for data processing if needed elsewhere, but their
+        // filtering logic below is removed as per user request.
+        final List<String> jobLocations = (data['location'] is List)
+            ? List<String>.from(data['location'])
+            : [data['location']?.toString() ?? ''];
+        final String jobType = data['jobType'] as String? ?? '';
 
-            print('DEBUG: Job Locations: $jobLocations | Job Type: "$jobType"');
+        print('DEBUG: Job Locations: $jobLocations | Job Type: "$jobType"');
 
-            bool locationMatches = true;
-            if (_state.preferredLocations.isNotEmpty) {
-              if (_state.preferredLocations.contains('Anywhere')) {
-                locationMatches = true;
-              } else {
-                locationMatches = jobLocations.any(
-                  (loc) => _state.preferredLocations.contains(loc),
-                );
-              }
-            }
+        // --- REVISION START ---
+        // As per user request, remove dependency on location and job type.
+        // All jobs returned by the Firestore query (filtered by rank)
+        // will now be included in the recommended list.
+        bool locationMatches = true; // Always true
+        bool jobTypeMatches = true; // Always true
 
-            bool jobTypeMatches = true;
-            if (_state.preferredJobTypes.isNotEmpty) {
-              jobTypeMatches = _state.preferredJobTypes.contains(jobType);
-            }
+        print(
+          'DEBUG: Location Match? $locationMatches (Bypassed) | Job Type Match? $jobTypeMatches (Bypassed)',
+        );
 
-            print(
-              'DEBUG: Location Match? $locationMatches | Job Type Match? $jobTypeMatches',
-            );
-
-            if (locationMatches && jobTypeMatches) {
-              print('DEBUG: -> SUCCESS: Job added to recommendations.');
-              filteredDocs.add(doc);
-            } else {
-              print('DEBUG: -> FAIL: Job filtered out.');
-            }
-          }
-          print('---');
-          print(
-            'DEBUG: Final recommendation count for this update: ${filteredDocs.length}',
-          );
-          print('------------------------------------');
-          return filteredDocs;
-        });
+        // The condition now effectively always adds the document if it passed the Firestore rank filter.
+        if (locationMatches && jobTypeMatches) {
+          print('DEBUG: -> SUCCESS: Job added to recommendations (Location/Job Type filters bypassed).');
+          filteredDocs.add(doc);
+        } else {
+          // This else block will effectively never be reached with the current logic
+          print('DEBUG: -> FAIL: Job filtered out (should not happen with bypassed filters).');
+        }
+        // --- REVISION END ---
+      }
+      print('---');
+      print(
+        'DEBUG: Final recommendation count for this update: ${filteredDocs.length}',
+      );
+      print('------------------------------------');
+      return filteredDocs;
+    });
   }
 
-  // --- Stream for current user's bookmarked job IDs ---
+  // ---------------------------------------------------------------------------
+  // 4. Saved Jobs (Bookmarks) Streams
+  //    (Provide bookmarked job IDs and their full data)
+  // ---------------------------------------------------------------------------
+
+  // Stream that fetches only the IDs of jobs bookmarked by the current user.
   Stream<List<String>> getSavedJobsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return Stream.value([]);
+      return Stream.value([]); // Return empty list if no user
     }
     return _firestore
         .collection('users')
@@ -224,11 +241,11 @@ class MyAuthProvider extends ChangeNotifier {
         .map((snapshot) => snapshot.docs.map((doc) => doc.id).toList());
   }
 
-  // Stream that fetches the actual job data for saved jobs
+  // Stream that fetches the actual job data for saved jobs based on their IDs.
   Stream<List<Map<String, dynamic>>> getSavedJobDataStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return Stream.value([]);
+      return Stream.value([]); // Return empty list if no user
     }
     return _firestore
         .collection('users')
@@ -236,45 +253,51 @@ class MyAuthProvider extends ChangeNotifier {
         .collection('bookmarked_jobs')
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            final data = doc.data();
-            final Map<String, dynamic> processedData = {
-              'id': doc.id,
-              'jobId': doc.id,
-              ...data,
-              'company':
-                  data['company'] ??
-                  (data['posterName'] ?? 'Community Post').toString(),
-              'logoChar': (data['company'] as String?)?.isNotEmpty == true
-                  ? (data['company'] as String)[0].toUpperCase()
-                  : (data['posterName'] as String?)?.isNotEmpty == true
-                  ? (data['posterName'] as String)[0].toUpperCase()
-                  : '?',
-              'jobTitle': data['jobTitle'] ?? 'No Title',
-              'location': (data['location'] is List)
-                  ? (data['location'] as List)
-                        .map((e) => e.toString())
-                        .join(', ')
-                  : data['location'] as String? ?? 'Remote',
-              'salary': data['salary'] ?? 'Negotiable',
-              'jobType': data['jobType'] ?? 'Full-time',
-              'difficultyRank':
-                  data['difficultyRank'] ??
-                  data['jobDifficultyRank'] ??
-                  'Not specified',
-              'jobDescription': data['jobDescription'] ?? '',
-              'requiredSkills': (data['requiredSkills'] is List)
-                  ? (data['requiredSkills'] as List)
-                        .map((e) => e.toString())
-                        .join(', ')
-                  : data['requiredSkills'] as String? ?? '',
-            };
-            return processedData;
-          }).toList();
-        });
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        final Map<String, dynamic> processedData = {
+          'id': doc.id,
+          'jobId': doc.id,
+          ...data,
+          'company':
+          data['company'] ??
+              (data['posterName'] ?? 'Community Post').toString(),
+          'logoChar': (data['company'] as String?)?.isNotEmpty == true
+              ? (data['company'] as String)[0].toUpperCase()
+              : (data['posterName'] as String?)?.isNotEmpty == true
+              ? (data['posterName'] as String)[0].toUpperCase()
+              : '?',
+          'jobTitle': data['jobTitle'] ?? 'No Title',
+          'location': (data['location'] is List)
+              ? (data['location'] as List)
+              .map((e) => e.toString())
+              .join(', ')
+              : data['location'] as String? ?? 'Remote',
+          'salary': data['salary'] ?? 'Negotiable',
+          'jobType': data['jobType'] ?? 'Full-time',
+          'difficultyRank':
+          data['difficultyRank'] ??
+              data['jobDifficultyRank'] ??
+              'Not specified',
+          'jobDescription': data['jobDescription'] ?? '',
+          'requiredSkills': (data['requiredSkills'] is List)
+              ? (data['requiredSkills'] as List)
+              .map((e) => e.toString())
+              .join(', ')
+              : data['requiredSkills'] as String? ?? '',
+        };
+        return processedData;
+      }).toList();
+    });
   }
 
-  // --- Device ID Management ---
+  // ---------------------------------------------------------------------------
+  // 5. Device ID Management
+  //    (Retrieves and stores a unique device ID)
+  // ---------------------------------------------------------------------------
+
+  // Fetches a unique device ID and stores it securely.
+  // It also updates the 'currentDeviceId' in the AuthState.
   Future<String?> _getDeviceId() async {
     String? deviceId = await _secureStorage.read(key: 'device_id');
     if (deviceId == null) {
@@ -287,7 +310,7 @@ class MyAuthProvider extends ChangeNotifier {
           IosDeviceInfo iosInfo = await deviceInfoPlugin.iosInfo;
           deviceId = iosInfo.identifierForVendor;
         } else {
-          // Fallback for web or other platforms
+          // Fallback for web or other platforms if specific device info not available
           deviceId = 'web_device_${DateTime.now().microsecondsSinceEpoch}';
         }
         if (deviceId != null) {
@@ -300,11 +323,16 @@ class MyAuthProvider extends ChangeNotifier {
         await _secureStorage.write(key: 'device_id', value: deviceId);
       }
     }
-    _state.currentDeviceId = deviceId;
+    _state.currentDeviceId = deviceId; // Update state directly
     return deviceId;
   }
 
-  // --- Authentication Methods ---
+  // ---------------------------------------------------------------------------
+  // 6. Core Authentication Methods
+  //    (Sign-in, Sign-up, Sign-out, Device Login Management)
+  // ---------------------------------------------------------------------------
+
+  // Handles user sign-in with email and password, including device ID validation.
   Future<void> signIn() async {
     _state.isLoading = true;
     _state.errorMessage = '';
@@ -333,16 +361,18 @@ class MyAuthProvider extends ChangeNotifier {
           final storedDeviceId = userDoc.data() as Map<String, dynamic>?;
           final existingDeviceId = storedDeviceId?['device_id'] as String?;
 
+          // Check if user is already logged in on another device
           if (existingDeviceId != null && existingDeviceId != currentDeviceId) {
             _state.isLoading = false;
             notifyListeners();
             _state.errorMessage =
-                'You are already logged in on another device. Sign in here to log out the other device.';
+            'You are already logged in on another device. Sign in here to log out the other device.';
             print(
               'MyAuthProvider: Login attempt from different device. Existing: $existingDeviceId, Current: $currentDeviceId',
             );
-            return;
+            return; // Exit here, user needs to decide to force login
           } else {
+            // Update or set device ID for this user
             await userDocRef.set({
               'device_id': currentDeviceId,
             }, SetOptions(merge: true));
@@ -351,6 +381,7 @@ class MyAuthProvider extends ChangeNotifier {
             );
           }
         } else {
+          // New user document (should ideally be created during sign-up)
           await userDocRef.set({
             'device_id': currentDeviceId,
             'email': _state.email,
@@ -371,7 +402,7 @@ class MyAuthProvider extends ChangeNotifier {
       _state.isLoading = false;
       _state.errorMessage = '';
       notifyListeners();
-      await loadUserProfile();
+      await loadUserProfile(); // Load user profile data after successful login
     } on FirebaseAuthException catch (e) {
       String message = 'An unknown error occurred.';
       if (e.code == 'user-not-found') {
@@ -393,6 +424,7 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
+  // Forces sign-in on a new device, overriding any existing device login.
   Future<void> forceSignInNewDevice() async {
     _state.isLoading = true;
     _state.errorMessage = '';
@@ -402,7 +434,7 @@ class MyAuthProvider extends ChangeNotifier {
       final currentDeviceId = await _getDeviceId();
       if (currentDeviceId == null || _state.user == null) {
         _state.errorMessage =
-            'Error retrieving device ID or user not authenticated.';
+        'Error retrieving device ID or user not authenticated.';
         _state.isLoading = false;
         notifyListeners();
         return;
@@ -410,7 +442,7 @@ class MyAuthProvider extends ChangeNotifier {
 
       final userDocRef = _firestore.collection('users').doc(_state.user!.uid);
       await userDocRef.set({
-        'device_id': currentDeviceId,
+        'device_id': currentDeviceId, // Overwrite existing device ID
       }, SetOptions(merge: true));
       print(
         'MyAuthProvider: Force sign-in: Device ID updated to $currentDeviceId.',
@@ -419,7 +451,7 @@ class MyAuthProvider extends ChangeNotifier {
       _state.isLoading = false;
       _state.errorMessage = '';
       notifyListeners();
-      await loadUserProfile();
+      await loadUserProfile(); // Reload user profile after force sign-in
     } catch (e) {
       _state.errorMessage = 'Failed to sign in on new device: $e';
       _state.isLoading = false;
@@ -427,6 +459,7 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
+  // Handles user registration with email and password.
   Future<void> signUp() async {
     _state.isLoading = true;
     _state.errorMessage = '';
@@ -460,11 +493,12 @@ class MyAuthProvider extends ChangeNotifier {
       notifyListeners();
 
       if (userCredential.user != null) {
+        // Create user document in Firestore upon successful registration
         await _firestore.collection('users').doc(userCredential.user!.uid).set({
           'uid': userCredential.user!.uid,
           'email': userCredential.user!.email,
           'name': _state.name,
-          'skillRank': '',
+          'skillRank': '', // Initialize profile fields
           'hasSkillRank': false,
           'userSkills': [],
           'preferredLocations': [],
@@ -472,7 +506,7 @@ class MyAuthProvider extends ChangeNotifier {
           'device_id': currentDeviceId,
           'createdAt': FieldValue.serverTimestamp(),
         });
-        await loadUserProfile();
+        await loadUserProfile(); // Load the newly created profile
       }
     } on FirebaseAuthException catch (e) {
       String message = 'An unknown error occurred during sign up.';
@@ -493,6 +527,7 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
+  // Handles user sign-out and clears device ID information.
   Future<void> signout() async {
     _state.isLoading = true;
     _state.errorMessage = '';
@@ -500,6 +535,7 @@ class MyAuthProvider extends ChangeNotifier {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // Clear device ID from Firestore when user signs out
         await _firestore.collection('users').doc(user.uid).update({
           'device_id': FieldValue.delete(),
         });
@@ -509,9 +545,10 @@ class MyAuthProvider extends ChangeNotifier {
       }
 
       await _authRepo.signOut();
+      // Reset AuthState to initial values after sign out
       _state = AuthState();
-      await _secureStorage.delete(key: 'device_id');
-      _state.profileLoaded = true;
+      await _secureStorage.delete(key: 'device_id'); // Clear local device ID
+      _state.profileLoaded = true; // Indicate that profile state is now 'empty' but loaded
       notifyListeners();
     } on FirebaseAuthException catch (e) {
       String message = 'Failed to sign out. Please try again.';
@@ -525,15 +562,21 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
-  // --- Profile Management (Includes loading bookmarked jobs) ---
+  // ---------------------------------------------------------------------------
+  // 7. User Profile Management Methods
+  //    (Load user profile data and save user preferences)
+  // ---------------------------------------------------------------------------
+
+  // Loads the current user's profile data from Firestore, including bookmarked jobs.
   Future<void> loadUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      // If no user, reset state to default, representing logged-out state
       _state.user = null;
       _state.hasSkillRank = false;
-      _state.profileLoaded = true;
+      _state.profileLoaded = true; // Indicate that the "empty" profile is loaded
       _state.errorMessage = '';
-      _state.currentDeviceId = await _getDeviceId();
+      _state.currentDeviceId = await _getDeviceId(); // Still get device ID even if logged out
       _state.bookmarkedJobIds.clear();
       _state.userSkills.clear();
       _state.preferredLocations.clear();
@@ -551,6 +594,7 @@ class MyAuthProvider extends ChangeNotifier {
           .doc(user.uid)
           .get();
 
+      // Fetch bookmarked job IDs
       List<String> fetchedBookmarkedJobIds = [];
       try {
         final bookmarkSnapshot = await _firestore
@@ -579,13 +623,14 @@ class MyAuthProvider extends ChangeNotifier {
             (data['preferredLocations'] as List<dynamic>?)
                 ?.map((e) => e.toString())
                 .toList() ??
-            [];
+                [];
         List<String> fetchedPreferredJobTypes =
             (data['preferredJobTypes'] as List<dynamic>?)
                 ?.map((e) => e.toString())
                 .toList() ??
-            [];
+                [];
 
+        // Update AuthState with fetched profile data
         _state.user = user;
         _state.name = data['name'] as String? ?? user.displayName ?? '';
         _state.email = data['email'] as String? ?? user.email ?? '';
@@ -599,6 +644,7 @@ class MyAuthProvider extends ChangeNotifier {
         _state.preferredLocations = fetchedPreferredLocations;
         _state.preferredJobTypes = fetchedPreferredJobTypes;
 
+        // Update last fetched values for optimization
         _state.lastFetchedSkillRank = fetchedSkillRank;
         _state.lastFetchedPreferredLocations = List.from(
           fetchedPreferredLocations,
@@ -611,6 +657,7 @@ class MyAuthProvider extends ChangeNotifier {
           'MyAuthProvider: Profile loaded. SkillRank: $fetchedSkillRank, HasRank: $hasRank, DeviceID: ${_state.currentDeviceId}, Bookmarks: ${_state.bookmarkedJobIds.length}, UserSkills: ${_state.userSkills.length}, Preferred Locations: ${_state.preferredLocations}, Preferred Job Types: ${_state.preferredJobTypes}',
         );
       } else {
+        // If user document doesn't exist, initialize with default values
         _state.user = user;
         _state.name = user.displayName ?? '';
         _state.email = user.email ?? '';
@@ -619,7 +666,7 @@ class MyAuthProvider extends ChangeNotifier {
         _state.profileLoaded = true;
         _state.errorMessage = '';
         _state.currentDeviceId = await _getDeviceId();
-        _state.bookmarkedJobIds = fetchedBookmarkedJobIds;
+        _state.bookmarkedJobIds = fetchedBookmarkedJobIds; // Still load bookmarks if any
         _state.userSkills = [];
         _state.preferredLocations = [];
         _state.preferredJobTypes = [];
@@ -630,6 +677,7 @@ class MyAuthProvider extends ChangeNotifier {
           'MyAuthProvider: User document not found. Profile loaded as empty. DeviceID: ${_state.currentDeviceId}, Bookmarks: ${_state.bookmarkedJobIds.length}, UserSkills: ${_state.userSkills.length}',
         );
 
+        // Create a basic user document if it doesn't exist
         await _firestore.collection('users').doc(user.uid).set({
           'uid': user.uid,
           'email': user.email,
@@ -640,18 +688,19 @@ class MyAuthProvider extends ChangeNotifier {
           'preferredLocations': [],
           'preferredJobTypes': [],
           'createdAt': FieldValue.serverTimestamp(),
-          'device_id': '',
+          'device_id': '', // Will be updated on next signIn/forceSignIn
         }, SetOptions(merge: true));
       }
     } catch (e) {
       print('MyAuthProvider: Error loading user profile: $e');
       _state.errorMessage = 'Failed to load user profile: $e';
-      _state.profileLoaded = true;
+      _state.profileLoaded = true; // Still mark as loaded to avoid infinite attempts
     } finally {
       notifyListeners();
     }
   }
 
+  // Saves the user's skill rank, user skills, preferred locations, and job types to Firestore.
   Future<void> saveUserPreferences() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -684,6 +733,7 @@ class MyAuthProvider extends ChangeNotifier {
       _state.isLoading = false;
       _state.hasSkillRank = true;
       _state.errorMessage = '';
+      // Update last fetched values to reflect the saved state for optimization
       _state.lastFetchedSkillRank = _state.skillRank;
       _state.lastFetchedPreferredLocations = List.from(
         _state.preferredLocations,
@@ -698,8 +748,12 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
-  // --- Job Posting Methods ---
+  // ---------------------------------------------------------------------------
+  // 8. Job Posting Methods
+  //    (Handles the submission of a new job listing)
+  // ---------------------------------------------------------------------------
 
+  // Posts a new job listing to Firestore using the data stored in AuthState.
   Future<void> postJob() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -708,6 +762,7 @@ class MyAuthProvider extends ChangeNotifier {
       return;
     }
 
+    // Basic validation for job posting fields
     if (_state.jobTitle.isEmpty ||
         _state.jobDescription.isEmpty ||
         _state.jobDifficultyRank.isEmpty ||
@@ -717,7 +772,7 @@ class MyAuthProvider extends ChangeNotifier {
         _state.jobType.isEmpty ||
         _state.requiredSkills.isEmpty) {
       _state.errorMessage =
-          'Please fill in all job details, including required skills.';
+      'Please fill in all job details, including required skills.';
       notifyListeners();
       return;
     }
@@ -731,12 +786,14 @@ class MyAuthProvider extends ChangeNotifier {
           ? _state.company[0].toUpperCase()
           : '?';
 
+      // Convert comma-separated location string to a list
       List<String> locationsList = _state.location
           .split(',')
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .toList();
 
+      // Add job listing to 'jobs' collection
       DocumentReference docRef = await _firestore.collection('jobs').add({
         'postedByUserId': user.uid,
         'posterName': _state.name.isNotEmpty
@@ -746,7 +803,7 @@ class MyAuthProvider extends ChangeNotifier {
         'jobDescription': _state.jobDescription,
         'jobDifficultyRank': _state.jobDifficultyRank,
         'company': _state.company,
-        'location': locationsList,
+        'location': locationsList, // Store as a list
         'salary': _state.salary,
         'jobType': _state.jobType,
         'logoChar': logoChar,
@@ -754,12 +811,13 @@ class MyAuthProvider extends ChangeNotifier {
             .split(',')
             .map((s) => s.trim())
             .where((s) => s.isNotEmpty)
-            .toList(),
+            .toList(), // Store as a list
         'timestamp': FieldValue.serverTimestamp(),
       });
 
       _state.isLoading = false;
       _state.errorMessage = '';
+      // Clear job posting form fields after successful submission
       _state.jobTitle = '';
       _state.jobDescription = '';
       _state.jobDifficultyRank = '';
@@ -776,7 +834,12 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
-  // --- Bookmarking Methods ---
+  // ---------------------------------------------------------------------------
+  // 9. Bookmark Action Methods
+  //    (Add/Remove job from user's bookmarks)
+  // ---------------------------------------------------------------------------
+
+  // Adds a job to the user's bookmarked jobs in Firestore.
   Future<void> addBookmark(String jobId, Map<String, dynamic> jobData) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -794,9 +857,10 @@ class MyAuthProvider extends ChangeNotifier {
           .collection('users')
           .doc(user.uid)
           .collection('bookmarked_jobs')
-          .doc(jobId)
+          .doc(jobId) // Use jobId as document ID for easy retrieval
           .set({...jobData, 'bookmarkedAt': FieldValue.serverTimestamp()});
 
+      // Update local state to reflect the change
       _state.bookmarkedJobIds.add(jobId);
       print('MyAuthProvider: Bookmarked job: $jobId');
       notifyListeners();
@@ -807,6 +871,7 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
+  // Removes a job from the user's bookmarked jobs in Firestore.
   Future<void> removeBookmark(String jobId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -827,6 +892,7 @@ class MyAuthProvider extends ChangeNotifier {
           .doc(jobId)
           .delete();
 
+      // Update local state to reflect the change
       _state.bookmarkedJobIds.remove(jobId);
       print('MyAuthProvider: Unbookmarked job: $jobId');
       notifyListeners();
@@ -837,10 +903,13 @@ class MyAuthProvider extends ChangeNotifier {
     }
   }
 
-  // --- Setter Methods for AuthState Properties ---
+  // ---------------------------------------------------------------------------
+  // 10. Setter Methods for AuthState Properties (for form inputs)
+  // ---------------------------------------------------------------------------
+
   void setName(String name) {
     _state.name = name;
-    _state.errorMessage = '';
+    _state.errorMessage = ''; // Clear error on input change
     notifyListeners();
   }
 
@@ -890,7 +959,10 @@ class MyAuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- Setter Methods for Job Posting Properties ---
+  // ---------------------------------------------------------------------------
+  // 11. Setter Methods for Job Posting Properties (for form inputs)
+  // ---------------------------------------------------------------------------
+
   void setJobTitle(String title) {
     _state.jobTitle = title;
     _state.errorMessage = '';
