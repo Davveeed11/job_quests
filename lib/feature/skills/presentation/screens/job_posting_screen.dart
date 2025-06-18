@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_job_quest/feature/auth/presentation/manager/my_auth_provider.dart';
 import 'package:my_job_quest/feature/home/presentation/widget/button.dart';
-import 'package:my_job_quest/feature/home/presentation/widget/text_field.dart'; // Make sure this path is correct
+import 'package:my_job_quest/feature/home/presentation/widget/text_field.dart';
 import 'package:provider/provider.dart';
 
 class JobPostingScreen extends StatefulWidget {
@@ -12,8 +12,8 @@ class JobPostingScreen extends StatefulWidget {
 }
 
 class _JobPostingScreenState extends State<JobPostingScreen> {
-  // Define your E-S Skill Rank options for job difficulty
-  final List<String> _difficultyRanks = [
+  // Constants moved to top for better organization
+  static const List<String> _difficultyRanks = [
     'S Rank',
     'A Rank',
     'B Rank',
@@ -22,8 +22,7 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
     'E Rank',
   ];
 
-  // Define options for Job Type
-  final List<String> _jobTypes = [
+  static const List<String> _jobTypes = [
     'Full-time',
     'Part-time',
     'Contract',
@@ -33,70 +32,75 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
     'Hybrid',
   ];
 
-  String? _selectedDifficultyRank; // Holds the selected difficulty for the job
-  String? _selectedJobType; // Holds the selected job type
-
-  // Controllers for job title and description
-  final TextEditingController _jobTitleController = TextEditingController();
-  final TextEditingController _jobDescriptionController =
-      TextEditingController();
-  final TextEditingController _companyController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _salaryController = TextEditingController();
-  final TextEditingController _requiredSkillsController =
-      TextEditingController();
+  // Form state
+  late final Map<String, TextEditingController> _controllers;
+  String? _selectedDifficultyRank;
+  String? _selectedJobType;
 
   @override
   void initState() {
     super.initState();
-    final provider = Provider.of<MyAuthProvider>(context, listen: false);
+    _initializeControllers();
+    WidgetsBinding.instance.addPostFrameCallback(_initializeProviderData);
+  }
 
-    // Initialize controllers with current provider state (if any)
-    _jobTitleController.text = provider.state.jobTitle;
-    _jobDescriptionController.text = provider.state.jobDescription;
-    _companyController.text = provider.state.company;
-    _locationController.text = provider.state.location;
-    _salaryController.text = provider.state.salary;
-    _requiredSkillsController.text = provider.state.requiredSkills;
+  void _initializeControllers() {
+    _controllers = {
+      'jobTitle': TextEditingController(),
+      'jobDescription': TextEditingController(),
+      'company': TextEditingController(),
+      'location': TextEditingController(),
+      'salary': TextEditingController(),
+      'requiredSkills': TextEditingController(),
+    };
+  }
 
-    // Initialize selected difficulty rank
-    if (provider.state.jobDifficultyRank.isNotEmpty) {
-      _selectedDifficultyRank = _difficultyRanks.firstWhere(
-        (rank) => rank.startsWith(provider.state.jobDifficultyRank),
-        orElse: () => _difficultyRanks.first, // Default if no match
-      );
-    } else {
-      _selectedDifficultyRank = _difficultyRanks.first; // Default to first rank
-    }
-    // Ensure provider state matches default if it was empty or not recognized
-    provider.setJobDifficultyRank(_selectedDifficultyRank!.split(' ')[0]);
+  void _initializeProviderData(_) {
+    if (!mounted) return;
 
-    // Initialize selected job type
-    if (provider.state.jobType.isNotEmpty) {
-      _selectedJobType = _jobTypes.firstWhere(
-        (type) => type == provider.state.jobType,
-        orElse: () => _jobTypes.first, // Default to first job type if no match
-      );
-    } else {
-      _selectedJobType = _jobTypes.first; // Default to first job type if empty
-    }
-    // Ensure provider state matches default if it was empty or not recognized
-    provider.setJobType(_selectedJobType!);
+    final provider = context.read<MyAuthProvider>();
+    final state = provider.state;
 
-    // Call setState to ensure UI updates with initial values
-    if (mounted) {
-      setState(() {});
-    }
+    // Batch controller updates
+    _controllers['jobTitle']!.text = state.jobTitle;
+    _controllers['jobDescription']!.text = state.jobDescription;
+    _controllers['company']!.text = state.company;
+    _controllers['location']!.text = state.location;
+    _controllers['salary']!.text = state.salary;
+    _controllers['requiredSkills']!.text = state.requiredSkills;
+
+    // Initialize dropdowns
+    _selectedDifficultyRank = _getInitialDifficultyRank(
+      state.jobDifficultyRank,
+    );
+    _selectedJobType = _getInitialJobType(state.jobType);
+
+    if (mounted) setState(() {});
+
+    // Update provider with initial values
+    provider.setJobDifficultyRank(_selectedDifficultyRank?.split(' ')[0] ?? '');
+    provider.setJobType(_selectedJobType ?? '');
+  }
+
+  String _getInitialDifficultyRank(String currentRank) {
+    if (currentRank.isEmpty) return _difficultyRanks.first;
+    return _difficultyRanks.firstWhere(
+      (rank) => rank.startsWith(currentRank),
+      orElse: () => _difficultyRanks.first,
+    );
+  }
+
+  String _getInitialJobType(String currentType) {
+    if (currentType.isEmpty) return _jobTypes.first;
+    return _jobTypes.firstWhere(
+      (type) => type == currentType,
+      orElse: () => _jobTypes.first,
+    );
   }
 
   @override
   void dispose() {
-    _jobTitleController.dispose();
-    _jobDescriptionController.dispose();
-    _companyController.dispose();
-    _locationController.dispose();
-    _salaryController.dispose();
-    _requiredSkillsController.dispose();
+    _controllers.values.forEach((controller) => controller.dispose());
     super.dispose();
   }
 
@@ -106,388 +110,303 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
       builder: (context, provider, child) {
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.background,
-          appBar: AppBar(
-            title: Text(
-              'Post a New Job',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onPrimary,
-              ),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back,
-                color: Theme.of(context).colorScheme.onPrimary,
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ),
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 20.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Share a job opportunity with the community.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  Text(
-                    'Job Title',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFieldWidget(
-                    hint: 'e.g., Senior Software Engineer',
-                    onchange: provider.setJobTitle,
-                    controller: _jobTitleController,
-                    isPassword: false,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Company Field
-                  Text(
-                    'Company Name',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFieldWidget(
-                    hint: 'e.g., Google, Inc.',
-                    onchange: provider.setCompany,
-                    controller: _companyController,
-                    isPassword: false,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Location Field
-                  Text(
-                    'Job Location (comma-separated if multiple)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFieldWidget(
-                    hint: 'e.g., Remote, New York, NY',
-                    onchange: provider.setLocation,
-                    controller: _locationController,
-                    isPassword: false,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Salary Field
-                  Text(
-                    'Salary Range (e.g., \$50K - \$70K)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFieldWidget(
-                    hint: 'e.g., \$120K - \$150K',
-                    onchange: provider.setSalary,
-                    controller: _salaryController,
-                    isPassword: false,
-                    keyboardType:
-                        TextInputType.text, // Keep as text to allow '$' and 'K'
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Job Type Dropdown
-                  Text(
-                    'Job Type',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.2),
-                      ),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _selectedJobType,
-                        hint: Text(
-                          'Select job type',
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(0.5),
-                          ),
-                        ),
-                        icon: Icon(
-                          Icons.arrow_drop_down,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _selectedJobType = newValue;
-                            provider.setJobType(newValue ?? '');
-                          });
-                        },
-                        items: _jobTypes.map<DropdownMenuItem<String>>((
-                          String value,
-                        ) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  Text(
-                    'Job Description',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFieldWidget(
-                    hint: 'Provide detailed description of the job...',
-                    onchange: provider.setJobDescription,
-                    controller: _jobDescriptionController,
-                    maxLines: 5, // Allow multiple lines for description
-                    isPassword: false,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Required Skills Field
-                  Text(
-                    'Required Skills (comma-separated)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFieldWidget(
-                    hint: 'e.g., Flutter, Dart, Firebase, UI/UX',
-                    onchange: (value) {
-                      provider.setRequiredSkills(value);
-                      print(
-                        'Required Skills Live Value: ${provider.state.requiredSkills}',
-                      ); // DEBUG PRINT
-                    },
-                    controller: _requiredSkillsController,
-                    isPassword: false,
-                  ),
-                  const SizedBox(height: 24),
-
-                  Text(
-                    'Job Difficulty Rank (E-S Scale)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.2),
-                      ),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _selectedDifficultyRank,
-                        hint: Text(
-                          'Select job difficulty',
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(0.5),
-                          ),
-                        ),
-                        icon: Icon(
-                          Icons.arrow_drop_down,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _selectedDifficultyRank = newValue;
-                            provider.setJobDifficultyRank(
-                              newValue?.split(' ')[0] ?? '',
-                            );
-                          });
-                        },
-                        items: _difficultyRanks.map<DropdownMenuItem<String>>((
-                          String value,
-                        ) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-
-                  if (provider.state.errorMessage.isNotEmpty)
-                    Column(
-                      children: [
-                        const SizedBox(height: 16.0),
-                        Text(
-                          provider.state.errorMessage,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16.0),
-                      ],
-                    ),
-
-                  const SizedBox(height: 32),
-
-                  Button(
-                    ontap: () async {
-                      // DEBUG PRINT: Check the value of requiredSkills before posting
-                      print(
-                        'Attempting to post. Required Skills: "${provider.state.requiredSkills}"',
-                      );
-                      await provider.postJob();
-                      if (!provider.state.isLoading &&
-                          provider.state.errorMessage.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Job posted successfully!',
-                              style: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSecondary,
-                              ),
-                            ),
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.secondary,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            margin: const EdgeInsets.all(16),
-                          ),
-                        );
-                        // Clear all controllers after successful post
-                        _jobTitleController.clear();
-                        _jobDescriptionController.clear();
-                        _companyController.clear();
-                        _locationController.clear();
-                        _salaryController.clear();
-                        _requiredSkillsController.clear();
-                        setState(() {
-                          _selectedDifficultyRank = null;
-                          _selectedJobType = null;
-                        });
-                        Navigator.of(context).pop();
-                      }
-                    },
-                    title: 'Post Job',
-                    isloading: provider.state.isLoading,
-                    isEnabled:
-                        !provider.state.isLoading &&
-                        provider.state.jobTitle.isNotEmpty &&
-                        provider.state.jobDescription.isNotEmpty &&
-                        provider.state.jobDifficultyRank.isNotEmpty &&
-                        provider.state.company.isNotEmpty &&
-                        provider.state.location.isNotEmpty &&
-                        provider.state.salary.isNotEmpty &&
-                        provider.state.jobType.isNotEmpty &&
-                        provider
-                            .state
-                            .requiredSkills
-                            .isNotEmpty, // Ensure skills are not empty
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ),
+          appBar: _buildAppBar(context),
+          body: _buildBody(context, provider),
         );
       },
     );
+  }
+
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppBar(
+      title: Text(
+        'Post a New Job',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: theme.colorScheme.onPrimary,
+        ),
+      ),
+      backgroundColor: theme.colorScheme.primary,
+      elevation: 0,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back, color: theme.colorScheme.onPrimary),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, MyAuthProvider provider) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            const SizedBox(height: 24),
+            ..._buildFormFields(context, provider),
+            _buildErrorMessage(context, provider),
+            const SizedBox(height: 32),
+            _buildSubmitButton(context, provider),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Text(
+      'Share a job opportunity with the community.',
+      style: TextStyle(
+        fontSize: 16,
+        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+      ),
+    );
+  }
+
+  List<Widget> _buildFormFields(BuildContext context, MyAuthProvider provider) {
+    return [
+      _buildTextField(
+        context,
+        'Job Title',
+        'e.g., Senior Software Engineer',
+        'jobTitle',
+        provider.setJobTitle,
+      ),
+      _buildTextField(
+        context,
+        'Company Name',
+        'e.g., Google, Inc.',
+        'company',
+        provider.setCompany,
+      ),
+      _buildTextField(
+        context,
+        'Job Location (comma-separated if multiple)',
+        'e.g., Remote, New York, NY',
+        'location',
+        provider.setLocation,
+      ),
+      _buildTextField(
+        context,
+        'Salary Range (e.g., \$50K - \$70K)',
+        'e.g., \$120K - \$150K',
+        'salary',
+        provider.setSalary,
+      ),
+      _buildDropdown(
+        context,
+        'Job Type',
+        _jobTypes,
+        _selectedJobType,
+        'Select job type',
+        (value) {
+          setState(() => _selectedJobType = value);
+          provider.setJobType(value ?? '');
+        },
+      ),
+      _buildTextField(
+        context,
+        'Job Description',
+        'Provide detailed description of the job...',
+        'jobDescription',
+        provider.setJobDescription,
+        maxLines: 5,
+      ),
+      _buildTextField(
+        context,
+        'Required Skills (comma-separated)',
+        'e.g., Flutter, Dart, Firebase, UI/UX',
+        'requiredSkills',
+        provider.setRequiredSkills,
+      ),
+      _buildDropdown(
+        context,
+        'Job Difficulty Rank (E-S Scale)',
+        _difficultyRanks,
+        _selectedDifficultyRank,
+        'Select job difficulty',
+        (value) {
+          setState(() => _selectedDifficultyRank = value);
+          provider.setJobDifficultyRank(value?.split(' ')[0] ?? '');
+        },
+      ),
+    ];
+  }
+
+  Widget _buildTextField(
+    BuildContext context,
+    String label,
+    String hint,
+    String controllerKey,
+    Function(String) onChanged, {
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel(context, label),
+        const SizedBox(height: 8),
+        TextFieldWidget(
+          hint: hint,
+          onchange: onChanged,
+          controller: _controllers[controllerKey]!,
+          maxLines: maxLines,
+          isPassword: false,
+          // keyboardType: controllerKey == 'salary' ? TextInputType.text : null,
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildDropdown(
+    BuildContext context,
+    String label,
+    List<String> items,
+    String? selectedValue,
+    String hint,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel(context, label),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: selectedValue,
+              hint: Text(
+                hint,
+                style: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.5),
+                ),
+              ),
+              icon: Icon(
+                Icons.arrow_drop_down,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              onChanged: onChanged,
+              items: items
+                  .map(
+                    (value) => DropdownMenuItem(
+                      value: value,
+                      child: Text(
+                        value,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildLabel(BuildContext context, String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.9),
+      ),
+    );
+  }
+
+  Widget _buildErrorMessage(BuildContext context, MyAuthProvider provider) {
+    if (provider.state.errorMessage.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Text(
+          provider.state.errorMessage,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.error,
+            fontSize: 14,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton(BuildContext context, MyAuthProvider provider) {
+    return Button(
+      ontap: () => _handleSubmit(context, provider),
+      title: 'Post Job',
+      isloading: provider.state.isLoading,
+      isEnabled: _isFormValid(provider),
+    );
+  }
+
+  bool _isFormValid(MyAuthProvider provider) {
+    final state = provider.state;
+    return !state.isLoading &&
+        state.jobTitle.isNotEmpty &&
+        state.jobDescription.isNotEmpty &&
+        state.jobDifficultyRank.isNotEmpty &&
+        state.company.isNotEmpty &&
+        state.location.isNotEmpty &&
+        state.salary.isNotEmpty &&
+        state.jobType.isNotEmpty &&
+        state.requiredSkills.isNotEmpty;
+  }
+
+  Future<void> _handleSubmit(
+    BuildContext context,
+    MyAuthProvider provider,
+  ) async {
+    await provider.postJob();
+
+    if (!provider.state.isLoading && provider.state.errorMessage.isEmpty) {
+      _showSuccessMessage(context);
+      _clearForm();
+      if (mounted) Navigator.of(context).pop();
+    }
+  }
+
+  void _showSuccessMessage(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Job posted successfully!',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSecondary),
+        ),
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _clearForm() {
+    _controllers.values.forEach((controller) => controller.clear());
+    setState(() {
+      _selectedDifficultyRank = null;
+      _selectedJobType = null;
+    });
   }
 }

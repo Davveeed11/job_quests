@@ -1,11 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:my_job_quest/feature/auth/data/auth_repo_impl.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:async';
 import 'dart:io';
+import 'dart:math'; // Import 'dart:math' for clamp()
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:my_job_quest/feature/auth/data/auth_repo_impl.dart';
 import 'package:my_job_quest/feature/auth/presentation/manager/auth_state.dart';
 
 class MyAuthProvider extends ChangeNotifier {
@@ -29,23 +31,36 @@ class MyAuthProvider extends ChangeNotifier {
     'E',
   ];
 
-  // --- Helper to get acceptable job difficulty ranks based on user's skill rank ---
+  // --- REVISED HELPER for more focused recommendations ---
   List<String> _getAcceptableDifficultyRanks(String userSkillRank) {
+    // Find the index of the user's primary rank (e.g., 'A' from 'A Rank')
     final int userRankIndex = _rankOrder.indexOf(userSkillRank.split(' ')[0]);
 
+    // If the user's rank isn't in our list, we can't recommend anything.
     if (userRankIndex == -1) {
       return [];
     }
 
-    Set<String> acceptableRanks = {};
-    for (int i = userRankIndex - 2; i <= _rankOrder.length - 1; i++) {
-      if (i >= 0 && i < _rankOrder.length) {
-        acceptableRanks.add(_rankOrder[i]);
-      }
-    }
-    acceptableRanks.remove('SSS');
-    acceptableRanks.remove('SS');
-    return acceptableRanks.toList();
+    // Define the range: 1 rank above to 2 ranks below the user's rank.
+    final int startIndex = (userRankIndex - 1).clamp(0, _rankOrder.length - 1);
+    final int endIndex = (userRankIndex + 3).clamp(
+      0,
+      _rankOrder.length,
+    ); // +3 because sublist's end is exclusive
+
+    // Create the list of acceptable ranks from the calculated range.
+    final List<String> acceptableRanks = _rankOrder.sublist(
+      startIndex,
+      endIndex,
+    );
+
+    // Example: User is 'A' (index 3).
+    // startIndex = (3 - 1) = 2.
+    // endIndex = (3 + 3) = 6.
+    // Resulting list will be from index 2 up to (but not including) index 6:
+    // ['S', 'A', 'B', 'C'].
+
+    return acceptableRanks;
   }
 
   // --- Stream for ALL job postings, returning QueryDocumentSnapshot to include doc.id ---
@@ -92,9 +107,6 @@ class MyAuthProvider extends ChangeNotifier {
                     .join(', ')
               : data['requiredSkills'] as String? ?? '',
         };
-        print(
-          'MyAuthProvider - CommunityJobs: Processed job ID ${doc.id}, DifficultyRank: ${processedData['difficultyRank']}',
-        ); // DEBUG
         return processedData;
       }).toList();
     });
@@ -103,18 +115,39 @@ class MyAuthProvider extends ChangeNotifier {
   // --- REVISED: Stream for Recommended Jobs with primary Firestore filter and secondary client-side filtering ---
   Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
   get recommendedJobsStream {
+    // ===== START DEBUGGING =====
+    print('--- Checking recommendedJobsStream ---');
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || !_state.profileLoaded || _state.skillRank.isEmpty) {
+      print('DEBUG: Stream cancelled. Reason:');
+      if (user == null) print('-> User is not logged in.');
+      if (!_state.profileLoaded) print('-> User profile is not loaded yet.');
+      if (_state.skillRank.isEmpty) print('-> User skill rank is empty.');
+      print('------------------------------------');
       return Stream.value([]);
     }
+
+    print('DEBUG: User is logged in and profile is loaded.');
+    print('DEBUG: User Skill Rank: "${_state.skillRank}"');
+    print('DEBUG: User Preferred Locations: ${_state.preferredLocations}');
+    print('DEBUG: User Preferred Job Types: ${_state.preferredJobTypes}');
 
     final acceptableDifficultyRanks = _getAcceptableDifficultyRanks(
       _state.skillRank,
     );
 
+    print('DEBUG: Calculated acceptable job ranks: $acceptableDifficultyRanks');
+
     if (acceptableDifficultyRanks.isEmpty) {
+      print(
+        'DEBUG: Stream cancelled. No acceptable job ranks could be calculated.',
+      );
+      print('------------------------------------');
       return Stream.value([]);
     }
+
+    print('DEBUG: Querying Firestore for jobs with those ranks...');
 
     return _firestore
         .collection('jobs')
@@ -122,14 +155,24 @@ class MyAuthProvider extends ChangeNotifier {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
+          print(
+            'DEBUG: Firestore returned ${snapshot.docs.length} documents matching the rank criteria.',
+          );
+
           List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredDocs = [];
           for (var doc in snapshot.docs) {
             final data = doc.data();
+            print('---');
+            print(
+              'DEBUG: Evaluating Job ID: ${doc.id} | Title: ${data['jobTitle']}',
+            );
+
             final List<String> jobLocations = (data['location'] is List)
                 ? List<String>.from(data['location'])
                 : [data['location']?.toString() ?? ''];
-
             final String jobType = data['jobType'] as String? ?? '';
+
+            print('DEBUG: Job Locations: $jobLocations | Job Type: "$jobType"');
 
             bool locationMatches = true;
             if (_state.preferredLocations.isNotEmpty) {
@@ -147,17 +190,22 @@ class MyAuthProvider extends ChangeNotifier {
               jobTypeMatches = _state.preferredJobTypes.contains(jobType);
             }
 
+            print(
+              'DEBUG: Location Match? $locationMatches | Job Type Match? $jobTypeMatches',
+            );
+
             if (locationMatches && jobTypeMatches) {
+              print('DEBUG: -> SUCCESS: Job added to recommendations.');
               filteredDocs.add(doc);
-              print(
-                'MyAuthProvider - RecommendedJobs: Filtered & Added job ID ${doc.id}, DifficultyRank: ${data['jobDifficultyRank']}',
-              ); // DEBUG
             } else {
-              print(
-                'MyAuthProvider - RecommendedJobs: Filtered OUT job ID ${doc.id}, DifficultyRank: ${data['jobDifficultyRank']} - Location match: $locationMatches, Type match: $jobTypeMatches',
-              ); // DEBUG
+              print('DEBUG: -> FAIL: Job filtered out.');
             }
           }
+          print('---');
+          print(
+            'DEBUG: Final recommendation count for this update: ${filteredDocs.length}',
+          );
+          print('------------------------------------');
           return filteredDocs;
         });
   }
@@ -221,9 +269,6 @@ class MyAuthProvider extends ChangeNotifier {
                         .join(', ')
                   : data['requiredSkills'] as String? ?? '',
             };
-            print(
-              'MyAuthProvider - SavedJobs: Processed job ID ${doc.id}, DifficultyRank: ${processedData['difficultyRank']}',
-            ); // DEBUG
             return processedData;
           }).toList();
         });
@@ -234,21 +279,28 @@ class MyAuthProvider extends ChangeNotifier {
     String? deviceId = await _secureStorage.read(key: 'device_id');
     if (deviceId == null) {
       final DeviceInfoPlugin deviceInfoPlugin = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        AndroidDeviceInfo androidInfo = await deviceInfoPlugin.androidInfo;
-        deviceId = androidInfo.id;
-      } else if (Platform.isIOS) {
-        IosDeviceInfo iosInfo = await deviceInfoPlugin.iosInfo;
-        deviceId = iosInfo.identifierForVendor;
-      } else {
-        deviceId = 'web_device_${DateTime.now().microsecondsSinceEpoch}';
-      }
-      if (deviceId != null) {
+      try {
+        if (Platform.isAndroid) {
+          AndroidDeviceInfo androidInfo = await deviceInfoPlugin.androidInfo;
+          deviceId = androidInfo.id;
+        } else if (Platform.isIOS) {
+          IosDeviceInfo iosInfo = await deviceInfoPlugin.iosInfo;
+          deviceId = iosInfo.identifierForVendor;
+        } else {
+          // Fallback for web or other platforms
+          deviceId = 'web_device_${DateTime.now().microsecondsSinceEpoch}';
+        }
+        if (deviceId != null) {
+          await _secureStorage.write(key: 'device_id', value: deviceId);
+        }
+      } catch (e) {
+        // Handle potential errors if device info is not available
+        print("Failed to get device ID: $e");
+        deviceId = 'fallback_device_${DateTime.now().microsecondsSinceEpoch}';
         await _secureStorage.write(key: 'device_id', value: deviceId);
       }
     }
     _state.currentDeviceId = deviceId;
-    print('MyAuthProvider: Current Device ID: ${deviceId ?? "N/A"}');
     return deviceId;
   }
 

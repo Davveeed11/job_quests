@@ -8,9 +8,9 @@ class AuthState {
   String skillRank = '';
   bool hasSkillRank = false;
   bool profileLoaded = false;
-  List<String> bookmarkedJobIds = []; // Stores IDs of bookmarked jobs
-  String?
-  currentDeviceId; // Stores the device ID for multi-device login management
+  // These are already initialized as mutable empty lists at the field level
+  List<String> bookmarkedJobIds = [];
+  String? currentDeviceId;
 
   User? user;
 
@@ -19,27 +19,24 @@ class AuthState {
   String jobDescription = '';
   String jobDifficultyRank = '';
   String company = '';
-  String location =
-      ''; // This will be the raw string from input, converted to List<String> on post
+  String location = '';
   String salary = '';
   String jobType = '';
-  String requiredSkills =
-      ''; // For skills required by a job (input as comma-separated string)
+  String requiredSkills = '';
 
   // Fields for User's Preferences (for recommendations)
-  List<String> userSkills = []; // List of skills the user possesses
-  List<String> preferredLocations = []; // User's preferred job locations
-  List<String> preferredJobTypes = []; // User's preferred job types
+  List<String> userSkills = [];
+  List<String> preferredLocations = [];
+  List<String> preferredJobTypes = [];
 
   // For caching last fetched preferences for recommended jobs stream optimization
-  String lastFetchedSkillRank = '';
   List<String> lastFetchedPreferredLocations = [];
   List<String> lastFetchedPreferredJobTypes = [];
+  String lastFetchedSkillRank = '';
 
   bool isLoading = false;
   String errorMessage = '';
 
-  // Constructor for easier state initialization if needed, though often default is fine.
   AuthState({
     this.email = '',
     this.password = '',
@@ -48,7 +45,9 @@ class AuthState {
     this.skillRank = '',
     this.hasSkillRank = false,
     this.profileLoaded = false,
-    this.bookmarkedJobIds = const [],
+    // FIX THESE: Remove `const` or ensure a new mutable list is used
+    // Best practice is to use a nullable parameter, and then initialize in the initializer list.
+    List<String>? bookmarkedJobIds, // Make it nullable
     this.currentDeviceId,
     this.user,
     this.jobTitle = '',
@@ -59,13 +58,19 @@ class AuthState {
     this.salary = '',
     this.jobType = '',
     this.requiredSkills = '',
-    this.userSkills = const [],
-    this.preferredLocations = const [],
-    this.preferredJobTypes = const [],
+    List<String>? userSkills, // Make it nullable
+    List<String>? preferredLocations, // Make it nullable
+    List<String>? preferredJobTypes, // Make it nullable
+    List<String>? lastFetchedPreferredLocations, // Make it nullable
+    List<String>? lastFetchedPreferredJobTypes, // Make it nullable
     this.lastFetchedSkillRank = '',
-    this.lastFetchedPreferredLocations = const [],
-    this.lastFetchedPreferredJobTypes = const [],
     this.isLoading = false,
     this.errorMessage = '',
-  });
+  }) : // Initialize the lists in the initializer list to ensure mutability
+       bookmarkedJobIds = bookmarkedJobIds ?? [],
+       userSkills = userSkills ?? [],
+       preferredLocations = preferredLocations ?? [],
+       preferredJobTypes = preferredJobTypes ?? [],
+       lastFetchedPreferredLocations = lastFetchedPreferredLocations ?? [],
+       lastFetchedPreferredJobTypes = lastFetchedPreferredJobTypes ?? [];
 }

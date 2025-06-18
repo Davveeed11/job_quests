@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_job_quest/feature/auth/presentation/manager/my_auth_provider.dart';
 import 'package:my_job_quest/feature/auth/presentation/screen/login_or_register.dart';
 import 'package:my_job_quest/feature/core/theme/theme_provider.dart';
+import 'package:my_job_quest/feature/profile/presentation/screen/rank_faq_page.dart';
 import 'package:provider/provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -309,6 +310,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Privacy Policy coming soon!')),
+                      );
+                    },
+                  ),
+                  Divider(
+                    height: 0,
+                    indent: 20,
+                    endIndent: 20,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.1),
+                  ),
+                  // FAQ Tile
+                  ListTile(
+                    leading: Icon(
+                      Icons.help_outline,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    title: Text(
+                      'FAQ',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 18,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RankFaqPage(),
+                        ),
                       );
                     },
                   ),

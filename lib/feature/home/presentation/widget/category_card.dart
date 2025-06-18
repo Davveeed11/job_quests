@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 
 /// Helper Widget for Category Cards (for explore categories)
 class CategoryCard extends StatefulWidget {
-  final String name; // Changed from Map to direct String
-  final IconData icon; // Changed from Map to direct IconData
+  final String name;
+  final IconData icon;
+  final int jobCount; // Added jobCount parameter
 
-  const CategoryCard({super.key, required this.name, required this.icon});
+  const CategoryCard({
+    super.key,
+    required this.name,
+    required this.icon,
+    required this.jobCount, // jobCount is now required
+  });
 
   @override
   State<CategoryCard> createState() => _CategoryCardState();
@@ -24,6 +30,8 @@ class _CategoryCardState extends State<CategoryCard> {
     setState(() {
       _scale = 1.0;
     });
+    // This SnackBar is for demonstration. In a real app, this would likely
+    // trigger navigation to a category-specific job listing page.
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Exploring ${widget.name} jobs')));
@@ -55,26 +63,39 @@ class _CategoryCardState extends State<CategoryCard> {
           ).colorScheme.surface, // Use theme surface color
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Row(
+            child: Column(
+              // Changed from Row to Column
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center content vertically
+              crossAxisAlignment:
+                  CrossAxisAlignment.center, // Center content horizontally
               children: [
                 Icon(
                   widget.icon,
-                  size: 32,
+                  size: 40, // Increased icon size for prominence
                   color: Theme.of(context).colorScheme.primary,
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    widget.name, // Access name directly
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface, // Use onSurface
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 14), // Increased spacing
+                Text(
+                  widget.name,
+                  textAlign: TextAlign.center, // Center align text
+                  style: TextStyle(
+                    fontSize: 16, // Slightly increased font size
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${widget.jobCount} jobs available', // Display job count
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
               ],
