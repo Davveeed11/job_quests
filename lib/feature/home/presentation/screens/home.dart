@@ -1,12 +1,20 @@
 import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:my_job_quest/feature/home/presentation/widget/app_disclaimer_dialog.dart';
+import 'package:my_job_quest/feature/home/presentation/widget/custom_search_bar.dart';
+import 'package:my_job_quest/feature/home/presentation/widget/header_icon_button.dart';
+import 'package:my_job_quest/feature/home/presentation/widget/horizontal_scrollable_section.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+
+// Local Imports (make sure these paths are correct in your project)
 import 'package:my_job_quest/feature/auth/presentation/manager/my_auth_provider.dart';
 import 'package:my_job_quest/feature/home/presentation/widget/category_card.dart';
 import 'package:my_job_quest/feature/home/presentation/widget/job_card.dart';
-import 'package:provider/provider.dart';
+
+import 'package:my_job_quest/feature/home/presentation/screens/recommended_jobs_screen.dart';
+import 'package:my_job_quest/feature/home/presentation/screens/community_jobs_screen.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -15,34 +23,78 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
-  final TextEditingController _searchController = TextEditingController();
+class _HomeState extends State<Home> with TickerProviderStateMixin {
   StreamSubscription<User?>? _authStateChangesSubscription;
   String userName = 'Loading...';
+  late AnimationController _fadeAnimationController;
+  late AnimationController _slideAnimationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
     _initializeUserName();
+
     _authStateChangesSubscription = FirebaseAuth.instance
         .authStateChanges()
         .listen((User? user) {
           if (mounted) {
             setState(() {
               userName = user?.displayName ?? 'Job Seeker';
+              if (user != null && user.displayName != null) {
+                analytics.setUserProperty(
+                  name: 'user_name',
+                  value: user.displayName,
+                );
+              }
             });
           }
         });
-    // Add listener to search controller for dynamic clear button visibility
-    _searchController.addListener(() {
-      setState(() {});
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Use the extracted function for the disclaimer dialog
+      showAppDisclaimerDialog(context);
+      _fadeAnimationController.forward();
+      _slideAnimationController.forward();
     });
+  }
+
+  void _initializeAnimations() {
+    _fadeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _slideAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _fadeAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _slideAnimationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
   }
 
   @override
   void dispose() {
     _authStateChangesSubscription?.cancel();
-    _searchController.dispose();
+    _fadeAnimationController.dispose();
+    _slideAnimationController.dispose();
     super.dispose();
   }
 
@@ -51,11 +103,16 @@ class _HomeState extends State<Home> {
     if (user != null) {
       setState(() {
         userName = user.displayName ?? 'Job Seeker';
+        analytics.setUserProperty(name: 'user_name', value: user.displayName);
       });
+      analytics.setUserId(id: user.uid);
+    } else {
+      analytics.setUserId(id: null);
+      analytics.setUserProperty(name: 'user_name', value: 'guest');
     }
   }
 
-  String getTimeOfDayGreeting() {
+  String _getTimeOfDayGreeting() {
     final now = DateTime.now().hour;
     if (now >= 5 && now < 12) {
       return 'Good morning';
@@ -68,532 +125,442 @@ class _HomeState extends State<Home> {
     }
   }
 
+  PageRouteBuilder _buildPageRoute(Widget page, String routeName) {
+    return PageRouteBuilder(
+      settings: RouteSettings(name: routeName),
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        const curve = Curves.easeOutCubic;
+
+        var tween = Tween(
+          begin: begin,
+          end: end,
+        ).chain(CurveTween(curve: curve));
+
+        var offsetAnimation = animation.drive(tween);
+        var fadeAnimation = animation.drive(
+          Tween(begin: 0.0, end: 1.0).chain(
+            CurveTween(
+              curve: curve,
+            ), // Use easeOutCubic for fade as well for consistency
+          ),
+        );
+
+        return SlideTransition(
+          position: offsetAnimation,
+          child: FadeTransition(opacity: fadeAnimation, child: child),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 350),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const double customHeaderHeight = 180.0;
-    const double searchBarHeight = 60.0;
-    const double searchBarHorizontalPadding = 16.0;
-    const double searchBarTopPosition =
-        customHeaderHeight - (searchBarHeight * 0.75);
+    final double screenHeight = MediaQuery.of(context).size.height;
+    final double screenWidth = MediaQuery.of(context).size.width;
+
+    final double responsiveHeaderHeight = (screenHeight * 0.25).clamp(
+      180.0,
+      250.0,
+    );
+    const double searchBarHeight = 56.0;
+    final double horizontalPadding = screenWidth * 0.05;
+
+    final double searchBarTopPosition =
+        responsiveHeaderHeight - (searchBarHeight * 0.6);
     final double scrollableContentTopPadding =
-        searchBarTopPosition + searchBarHeight + 20.0;
+        searchBarTopPosition + searchBarHeight + 24.0;
+
     final authProvider = Provider.of<MyAuthProvider>(context);
+
     final List<Map<String, dynamic>> jobCategories = [
-      {'name': 'Software Development', 'icon': Icons.code, 'jobCount': 120},
-      {'name': 'Marketing', 'icon': Icons.campaign, 'jobCount': 85},
-      {'name': 'Design', 'icon': Icons.palette, 'jobCount': 60},
-      {'name': 'Data Science', 'icon': Icons.analytics, 'jobCount': 45},
-      {'name': 'Finance', 'icon': Icons.attach_money, 'jobCount': 90},
-      {'name': 'Healthcare', 'icon': Icons.local_hospital, 'jobCount': 75},
-      {'name': 'Education', 'icon': Icons.school, 'jobCount': 110},
-      {'name': 'Sales', 'icon': Icons.storefront, 'jobCount': 50},
+      {
+        'name': 'Software Development',
+        'icon': Icons.code,
+        'jobCount': 120,
+        'color': Colors.blue,
+      },
+      {
+        'name': 'Marketing',
+        'icon': Icons.campaign,
+        'jobCount': 85,
+        'color': Colors.orange,
+      },
+      {
+        'name': 'Design',
+        'icon': Icons.palette,
+        'jobCount': 60,
+        'color': Colors.purple,
+      },
+      {
+        'name': 'Data Science',
+        'icon': Icons.analytics,
+        'jobCount': 45,
+        'color': Colors.green,
+      },
+      {
+        'name': 'Finance',
+        'icon': Icons.attach_money,
+        'jobCount': 90,
+        'color': Colors.teal,
+      },
+      {
+        'name': 'Healthcare',
+        'icon': Icons.local_hospital,
+        'jobCount': 75,
+        'color': Colors.red,
+      },
+      {
+        'name': 'Education',
+        'icon': Icons.school,
+        'jobCount': 110,
+        'color': Colors.indigo,
+      },
+      {
+        'name': 'Sales',
+        'icon': Icons.storefront,
+        'jobCount': 50,
+        'color': Colors.amber,
+      },
     ];
 
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Stack(
+          children: [
+            _buildEnhancedBackground(responsiveHeaderHeight),
+            _buildFloatingShapes(),
+            _buildCustomHeader(responsiveHeaderHeight),
+            CustomSearchBar(
+              // Using extracted CustomSearchBar widget
+              topPosition: searchBarTopPosition,
+              horizontalPadding: horizontalPadding,
+              height: searchBarHeight,
+            ),
+            _buildMainContent(
+              scrollableContentTopPadding,
+              authProvider,
+              jobCategories,
+              horizontalPadding,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnhancedBackground(double headerHeight) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        height: headerHeight,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).colorScheme.primary,
+              Theme.of(context).colorScheme.primary.withOpacity(0.8),
+              Theme.of(context).colorScheme.secondary.withOpacity(0.6),
+            ],
+          ),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(40),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+              spreadRadius: 0,
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingShapes() {
     return Stack(
       children: [
-        // Background Header Area
         Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
+          top: -100,
+          right: -50,
           child: Container(
-            height: customHeaderHeight,
+            width: 200,
+            height: 200,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(35),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  spreadRadius: 0,
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // Floating background shapes (for visual flair)
-        Positioned(
-          top: -MediaQuery.of(context).size.width * 0.4,
-          left: -MediaQuery.of(context).size.width * 0.2,
-          child: Container(
-            width: MediaQuery.of(context).size.width * 1.2,
-            height: MediaQuery.of(context).size.width * 1.2,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+              color: Colors.white.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
           ),
         ),
         Positioned(
-          bottom: -MediaQuery.of(context).size.width * 0.4,
-          right: -MediaQuery.of(context).size.width * 0.2,
+          top: 50,
+          left: -30,
           child: Container(
-            width: MediaQuery.of(context).size.width * 1.0,
-            height: MediaQuery.of(context).size.width * 1.0,
+            width: 120,
+            height: 120,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondary.withOpacity(0.03),
+              color: Colors.white.withOpacity(0.08),
               shape: BoxShape.circle,
             ),
           ),
         ),
-
-        // Custom Header Content (Greeting, Name, Profile, Notifications)
         Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 120.0,
+          bottom: 200,
+          right: -80,
+          child: Container(
+            width: 300,
+            height: 300,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondary.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCustomHeader(double headerHeight) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: headerHeight * 0.7,
+      child: SafeArea(
+        child: SlideTransition(
+          position: _slideAnimation,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 0.0),
+            padding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          getTimeOfDayGreeting(),
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w400,
-                            shadows: [
-                              Shadow(
-                                blurRadius: 2.0,
-                                color: Colors.black.withOpacity(0.2),
-                                offset: const Offset(1, 1),
-                              ),
-                            ],
-                          ),
+                      Text(
+                        _getTimeOfDayGreeting(),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          userName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontSize: 24,
-                            shadows: [
-                              Shadow(
-                                blurRadius: 3.0,
-                                color: Colors.black45,
-                                offset: Offset(1, 1),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.notifications_outlined,
-                        color: Theme.of(context).colorScheme.onPrimary,
-                        size: 28,
-                      ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Notifications tapped!'),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Profile tapped!')),
-                        );
-                      },
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.white.withOpacity(0.9),
-                        child: Icon(
-                          Icons.person,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        // You can use a NetworkImage or AssetImage here for a real profile picture
-                        // backgroundImage: NetworkImage('https://example.com/your_profile_pic.jpg'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // Fixed Search Bar
-        Positioned(
-          top: searchBarTopPosition,
-          left: searchBarHorizontalPadding,
-          right: searchBarHorizontalPadding,
-          child: Container(
-            height: searchBarHeight,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.15),
-                  spreadRadius: 2,
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-              border: Border.all(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
-                width: 0.5,
-              ),
-            ),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search for jobs, companies...',
-                hintStyle: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.5),
-                ),
-                border: InputBorder.none,
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.clear,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.6),
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                        },
-                      )
-                    : null,
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 16.0,
-                  horizontal: 20.0,
-                ),
-              ),
-              onSubmitted: (query) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Searching for: "$query"...')),
-                );
-              },
-            ),
-          ),
-        ),
-
-        // Main Scrollable Content
-        Positioned.fill(
-          top: scrollableContentTopPadding,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Job Categories Section
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
                       Text(
-                        'Job Categories',
-                        style: TextStyle(
-                          fontSize: 20,
+                        userName,
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onBackground,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('See All Categories tapped!'),
+                          color: Colors.white,
+                          fontSize: 28,
+                          letterSpacing: 0.5,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 8.0,
+                              color: Colors.black26,
+                              offset: Offset(0, 2),
                             ),
-                          );
-                        },
-                        child: Text(
-                          'See All',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Find your dream job today',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                // SizedBox(
-                //   height: 138, // Increased height for better visibility
-                //   child: ListView.builder(
-                //     scrollDirection: Axis.horizontal,
-                //     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                //     itemCount: jobCategories.length,
-                //     itemBuilder: (context, index) {
-                //       final category = jobCategories[index];
-                //       return Padding(
-                //         padding: const EdgeInsets.only(
-                //           right: 12.0,
-                //         ), // Spacing between cards
-                //         child: SizedBox(
-                //           width: 180.0, // Example width, adjust as needed
-                //           child: CategoryCard(
-                //             name: category['name']!,
-                //             icon: category['icon']!,
-                //             jobCount:
-                //                 category['jobCount']!, // Pass the job count
+                // Row(
+                //   children: [
+                //     HeaderIconButton(
+                //       // Using extracted HeaderIconButton
+                //       icon: Icons.notifications_outlined,
+                //       onPressed: () {
+                //         ScaffoldMessenger.of(context).showSnackBar(
+                //           SnackBar(
+                //             content: const Text('Notifications opened'),
+                //             behavior: SnackBarBehavior.floating,
+                //             shape: RoundedRectangleBorder(
+                //               borderRadius: BorderRadius.circular(10),
+                //             ),
                 //           ),
-                //         ),
-                //       );
-                //     },
-                //   ),
+                //         );
+                //         analytics.logEvent(name: 'notifications_tapped');
+                //       },
+                //     ),
+                //     const SizedBox(width: 12),
+                //     const ProfileAvatar(), // Using extracted ProfileAvatar
+                //   ],
                 // ),
-                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-                // Recommended for you section
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Recommended for you',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onBackground,
-                        ),
+  Widget _buildMainContent(
+    double topPadding,
+    MyAuthProvider authProvider,
+    List<Map<String, dynamic>> jobCategories,
+    double horizontalPadding,
+  ) {
+    return Positioned.fill(
+      top: topPadding,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            0,
+            horizontalPadding,
+            24.0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Explicitly define the generic type here: <Map<String, dynamic>>
+              HorizontalScrollableSection<Map<String, dynamic>>(
+                title: 'Recommended for you',
+                onSeeAllPressed: () {
+                  Navigator.of(context).push(
+                    _buildPageRoute(
+                      const RecommendedJobsScreen(),
+                      '/recommended_jobs',
+                    ),
+                  );
+                  analytics.logEvent(name: 'see_all_recommended_jobs');
+                },
+                stream: authProvider.recommendedJobsStream,
+                itemBuilder: (context, jobData) {
+                  // jobData is now correctly inferred as Map<String, dynamic>
+                  // jobData is already processed by HorizontalScrollableSection
+                  return JobCard(
+                    job: jobData,
+                    jobId:
+                        jobData['jobId'], // jobId is now guaranteed to be in jobData
+                    onTap: () {
+                      analytics.logSelectContent(
+                        contentType: 'job_recommendation',
+                        itemId: jobData['jobId'],
+                      );
+                    },
+                  );
+                },
+                itemWidth: 200, // Adjusted to show more of the next card
+                listHeight: 240,
+                emptyMessage:
+                    authProvider.state.user != null &&
+                        authProvider.state.skillRank.isEmpty
+                    ? 'Please set your skill rank in Settings to see recommendations!'
+                    : 'No recommended jobs found.',
+                emptyIcon: Icons.star_half,
+              ),
+              // Explicitly define the generic type here: <Map<String, dynamic>>
+              HorizontalScrollableSection<Map<String, dynamic>>(
+                title: 'Community Job Board',
+                onSeeAllPressed: () {
+                  Navigator.of(context).push(
+                    _buildPageRoute(
+                      const CommunityJobsScreen(),
+                      '/community_jobs',
+                    ),
+                  );
+                  analytics.logEvent(name: 'see_all_community_jobs');
+                },
+                stream: authProvider.allJobsDocsStream,
+                itemBuilder: (context, jobData) {
+                  // jobData is now correctly inferred as Map<String, dynamic>
+                  return JobCard(
+                    job: jobData, // This assignment is now valid
+                    jobId:
+                        jobData['jobId'], // jobId is now guaranteed to be in jobData
+                    onTap: () {
+                      analytics.logSelectContent(
+                        contentType: 'community_job',
+                        itemId: jobData['jobId'],
+                      );
+                    },
+                  );
+                },
+                itemWidth: 200, // Adjusted to show more of the next card
+                listHeight: 240,
+                emptyMessage:
+                    'No community jobs posted yet. Be the first to share one!',
+                emptyIcon: Icons.person_add_alt_1,
+              ),
+              const SizedBox(height: 2), // Reduced spacing
+              // This one was already correctly typed
+              HorizontalScrollableSection<Map<String, dynamic>>(
+                title: 'Browse Categories',
+                onSeeAllPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('See All Categories tapped!'),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('See All Recommended tapped!'),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'See All',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 220, // Height matching JobCard
-                  child:
-                      StreamBuilder<
-                        List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                      >(
-                        stream: authProvider.recommendedJobsStream,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (snapshot.hasError) {
-                            return Center(
-                              child: Text(
-                                'Error loading recommended jobs: ${snapshot.error}',
-                              ),
-                            );
-                          }
-                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                            String message = 'No recommended jobs found.';
-                            if (authProvider.state.user != null &&
-                                authProvider.state.skillRank.isEmpty) {
-                              message =
-                                  'Please set your skill rank in Settings to see recommendations!';
-                            }
-                            return Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(20.0),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.star_half,
-                                      size: 40,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onBackground
-                                          .withOpacity(0.4),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      message,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onBackground
-                                            .withOpacity(0.6),
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }
-
-                          final recommendedJobsDocs = snapshot.data!;
-                          return ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                            ),
-                            itemCount: recommendedJobsDocs.length,
-                            itemBuilder: (context, index) {
-                              final jobDoc = recommendedJobsDocs[index];
-                              final jobData = jobDoc.data();
-                              print(recommendedJobsDocs.length);
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 12.0),
-                                child: JobCard(
-                                  job: jobData,
-                                  jobId:
-                                      jobDoc.id, // Pass the actual document ID
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                ),
-                const SizedBox(height: 24),
-
-                // Community Job Board section
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Community Job Board',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onBackground,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('See All Community Jobs tapped!'),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'See All',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                StreamBuilder<
-                  List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                >(
-                  stream: authProvider
-                      .allJobsDocsStream, // Use the stream for all jobs
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text('Error: ${snapshot.error}'));
-                    }
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_add_alt_1,
-                                size: 40,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onBackground.withOpacity(0.4),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'No community jobs posted yet. Be the first to share one!',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onBackground.withOpacity(0.6),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                    ),
+                  );
+                  analytics.logEvent(name: 'see_all_categories');
+                },
+                staticItems: jobCategories, // Pass static items
+                itemBuilder: (context, category) {
+                  // Category is already inferred as Map<String, dynamic> due to staticItems
+                  return CategoryCard(
+                    name: category['name'],
+                    icon: category['icon'],
+                    jobCount: category['jobCount'],
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Tapped on ${category['name']}'),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                       );
-                    }
-                    final communityJobsDocs = snapshot.data!;
-                    return SizedBox(
-                      height: 220,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        itemCount: communityJobsDocs.length,
-                        itemBuilder: (context, index) {
-                          final jobDoc = communityJobsDocs[index];
-                          final jobData = jobDoc.data();
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 12.0),
-                            child: JobCard(
-                              job: jobData,
-                              jobId: jobDoc.id, // Pass the actual document ID
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
+                      analytics.logEvent(
+                        name: 'category_tapped',
+                        parameters: {'category_name': category['name']},
+                      );
+                    },
+                  );
+                },
+                itemWidth: 150, // This width generally allows multiple to show
+                listHeight: 150,
+                emptyMessage: 'No categories available.',
+                emptyIcon: Icons.category,
+              ),
+              const SizedBox(height: 20), // Reduced spacing
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -9,7 +9,7 @@ class AuthRepoImpl {
         email: email,
         password: password,
       );
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       // Re-throw specific FirebaseAuthException to be handled by the provider
       rethrow;
     } catch (e) {
@@ -37,9 +37,9 @@ class AuthRepoImpl {
       }
 
       return userCredential;
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       // Re-throw specific FirebaseAuthException
-      throw e;
+      rethrow;
     } catch (e) {
       // Generic error
       throw Exception('Failed to sign up: $e');
@@ -50,8 +50,8 @@ class AuthRepoImpl {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
-    } on FirebaseAuthException catch (e) {
-      throw e;
+    } on FirebaseAuthException {
+      rethrow;
     } catch (e) {
       throw Exception('Failed to sign out: $e');
     }

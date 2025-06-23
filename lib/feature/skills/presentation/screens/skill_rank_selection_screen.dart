@@ -92,7 +92,7 @@ class _SkillRankSelectionScreenState extends State<SkillRankSelectionScreen> {
     return Consumer<MyAuthProvider>(
       builder: (context, provider, child) {
         return Scaffold(
-          backgroundColor: Theme.of(context).colorScheme.background,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           body: SafeArea(
             child: SingleChildScrollView(
               // Added SingleChildScrollView
@@ -119,7 +119,7 @@ class _SkillRankSelectionScreenState extends State<SkillRankSelectionScreen> {
                       fontSize: 16,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onBackground.withOpacity(0.8),
+                      ).colorScheme.onSurface.withOpacity(0.8),
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -132,7 +132,7 @@ class _SkillRankSelectionScreenState extends State<SkillRankSelectionScreen> {
                       fontWeight: FontWeight.w600,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
+                      ).colorScheme.onSurface.withOpacity(0.9),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -197,7 +197,7 @@ class _SkillRankSelectionScreenState extends State<SkillRankSelectionScreen> {
                       fontSize: 12,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onBackground.withOpacity(0.7),
+                      ).colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -210,7 +210,7 @@ class _SkillRankSelectionScreenState extends State<SkillRankSelectionScreen> {
                       fontWeight: FontWeight.w600,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
+                      ).colorScheme.onSurface.withOpacity(0.9),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -276,7 +276,7 @@ class _SkillRankSelectionScreenState extends State<SkillRankSelectionScreen> {
                       fontWeight: FontWeight.w600,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onBackground.withOpacity(0.9),
+                      ).colorScheme.onSurface.withOpacity(0.9),
                     ),
                   ),
                   const SizedBox(height: 8),

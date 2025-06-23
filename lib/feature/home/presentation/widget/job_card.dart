@@ -2,85 +2,121 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:my_job_quest/feature/auth/presentation/manager/my_auth_provider.dart';
 import 'package:my_job_quest/feature/skills/presentation/screens/job_detail_screen.dart';
-import 'dart:async'; // Required for StreamSubscription
+import 'dart:async';
+import 'package:flutter/services.dart';
 
 class JobCard extends StatefulWidget {
   final Map<String, dynamic> job;
   final String? jobId;
-  final Function(String, bool)?
-  onBookmarkToggled; // Kept for potential external use, but not strictly needed for internal bookmark logic anymore
+  final Function(String, bool)? onBookmarkToggled;
+  final VoidCallback? onTap;
 
   const JobCard({
     super.key,
     required this.job,
     this.jobId,
     this.onBookmarkToggled,
+    this.onTap,
   });
 
   @override
   State<JobCard> createState() => _JobCardState();
 }
 
-class _JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
+class _JobCardState extends State<JobCard> with TickerProviderStateMixin {
   late bool _isBookmarked;
   StreamSubscription? _bookmarkSubscription;
 
-  // For the scale animation when tapping the card
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
+  // Made nullable to avoid LateInitializationError
+  AnimationController? _animationController;
+  AnimationController? _bookmarkAnimationController;
+  AnimationController? _hoverController;
+
+  Animation<double>? _scaleAnimation;
+  Animation<double>? _bookmarkScaleAnimation;
+  Animation<double>? _elevationAnimation;
+  Animation<Color?>? _colorAnimation;
+
+  bool _isHovered = false;
 
   @override
   void initState() {
     super.initState();
-    _isBookmarked = false; // Default state, will be updated by stream
+    _isBookmarked = false;
+    _setupAnimations();
     _listenToBookmarkStatus();
+  }
 
-    // Initialize animation controller
+  void _setupAnimations() {
+    // Press animation
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 150), // Quick animation
-      reverseDuration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 180),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _animationController!, curve: Curves.easeOut),
+    );
+
+    // Bookmark animation
+    _bookmarkAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _bookmarkScaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
       CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut, // Smooth ease-out effect
+        parent: _bookmarkAnimationController!,
+        curve: Curves.elasticOut,
       ),
     );
+
+    // Hover animation
+    _hoverController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _elevationAnimation = Tween<double>(begin: 8.0, end: 16.0).animate(
+      CurvedAnimation(parent: _hoverController!, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final theme = Theme.of(context);
+    _colorAnimation =
+        ColorTween(
+          begin: theme.colorScheme.surface,
+          end: theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
+        ).animate(
+          CurvedAnimation(parent: _hoverController!, curve: Curves.easeInOut),
+        );
   }
 
   @override
   void didUpdateWidget(covariant JobCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If the jobId changes (e.g., in a dynamic list where items are replaced),
-    // cancel the old subscription and set up a new one for the new jobId.
     if (widget.jobId != oldWidget.jobId) {
       _bookmarkSubscription?.cancel();
       _listenToBookmarkStatus();
     }
   }
 
-  // Listens to the auth provider's saved jobs stream to update bookmark status in real-time
   void _listenToBookmarkStatus() {
     final authProvider = Provider.of<MyAuthProvider>(context, listen: false);
     if (authProvider.state.user != null && widget.jobId != null) {
-      // It's crucial to cancel the previous subscription before creating a new one
-      // to prevent memory leaks if this widget's ID changes or it's reused.
-      _bookmarkSubscription
-          ?.cancel(); // Ensure any existing subscription is cancelled
+      _bookmarkSubscription?.cancel();
 
       _bookmarkSubscription = authProvider.getSavedJobsStream().listen((
         savedJobIds,
       ) {
         if (mounted) {
-          // Only update state if the widget is still in the widget tree
           setState(() {
             _isBookmarked = savedJobIds.contains(widget.jobId);
           });
         }
       });
     } else {
-      // If no user or no jobId, ensure the bookmark status is false
       if (mounted) {
         setState(() {
           _isBookmarked = false;
@@ -91,19 +127,59 @@ class _JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
-    _bookmarkSubscription?.cancel(); // Always cancel stream subscriptions
-    _animationController.dispose(); // Always dispose animation controllers
+    _bookmarkSubscription?.cancel();
+    _animationController?.dispose();
+    _bookmarkAnimationController?.dispose();
+    _hoverController?.dispose();
     super.dispose();
+  }
+
+  // Theme-aware gradient for hover effect
+  LinearGradient _getCardGradient(BuildContext context, bool isHovered) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (!isHovered) {
+      return LinearGradient(
+        colors: [theme.colorScheme.surface, theme.colorScheme.surface],
+      );
+    }
+
+    if (isDark) {
+      return LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          theme.colorScheme.surface,
+          theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+          theme.colorScheme.surface,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      );
+    } else {
+      return LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          theme.colorScheme.surface,
+          theme.primaryColor.withOpacity(0.02),
+          theme.colorScheme.surface,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // We listen to the provider here to get the current user state for `authProvider.state.user`
-    // but without rebuilding the entire JobCard if only other provider state changes.
+    // Return early if animations aren't initialized
+    if (_animationController == null || _hoverController == null) {
+      return const SizedBox.shrink();
+    }
+
     final authProvider = Provider.of<MyAuthProvider>(context, listen: false);
     final theme = Theme.of(context);
 
-    // Safely extract job details, providing fallback values and handling types
     final String jobTitle =
         widget.job['jobTitle'] ??
         widget.job['title'] ??
@@ -126,314 +202,430 @@ class _JobCardState extends State<JobCard> with SingleTickerProviderStateMixin {
         widget.job['logoChar'] ??
         (company.isNotEmpty ? company[0].toUpperCase() : '?');
 
-    // Use jobDifficultyRank from Firestore, fallback to difficultyRank, then 'N/A'
     final String difficultyRank =
         widget.job['jobDifficultyRank'] ??
         widget.job['difficultyRank'] ??
         'N/A';
 
     return Center(
-      // Center the card on wider screens, allowing it to take less than full width if needed
       child: ConstrainedBox(
-        // Allows it to be responsive, but sets max/min width
-        constraints: const BoxConstraints(
-          maxWidth:
-              360, // Maximum width for the card (e.g., on tablets/desktops)
-          minWidth:
-              280, // Minimum width, prevents it from getting too small on tiny screens
-        ),
-        child: ScaleTransition(
-          // Apply scale animation here
-          scale: _scaleAnimation,
-          child: Card(
-            elevation: 10, // Increased elevation for a more pronounced shadow
-            shadowColor: theme.colorScheme.shadow.withOpacity(0.3),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(
-                22,
-              ), // Even more rounded corners
-              side: BorderSide(
-                color: theme.colorScheme.outline.withOpacity(
-                  0.1,
-                ), // Very subtle border
-                width: 0.5,
-              ),
-            ),
-            margin: const EdgeInsets.symmetric(
-              vertical: 12,
-              horizontal: 10,
-            ), // Ensures some padding from edges
-            clipBehavior:
-                Clip.antiAlias, // Ensures content is clipped to rounded corners
-            child: InkWell(
-              borderRadius: BorderRadius.circular(22),
-              // Animation callbacks for press down/up
-              onTapDown: (_) => _animationController.forward(),
-              onTapUp: (_) => _animationController.reverse(),
-              onTapCancel: () => _animationController.reverse(),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        JobDetailScreen(job: widget.job, jobId: widget.jobId),
+        constraints: const BoxConstraints(maxWidth: 340, minWidth: 280),
+        child: AnimatedBuilder(
+          animation: Listenable.merge([
+            _animationController!,
+            _hoverController!,
+          ]),
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _scaleAnimation?.value ?? 1.0,
+              child: MouseRegion(
+                onEnter: (_) {
+                  setState(() => _isHovered = true);
+                  _hoverController?.forward();
+                },
+                onExit: (_) {
+                  setState(() => _isHovered = false);
+                  _hoverController?.reverse();
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 10,
+                  ), // Reduced margin
+                  decoration: BoxDecoration(
+                    gradient: _getCardGradient(context, _isHovered),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: _isHovered
+                          ? theme.primaryColor.withOpacity(0.3)
+                          : theme.colorScheme.outline.withOpacity(0.08),
+                      width: _isHovered ? 1.2 : 0.8,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.shadow.withOpacity(0.12),
+                        blurRadius: _elevationAnimation?.value ?? 8.0,
+                        offset: Offset(
+                          0,
+                          (_elevationAnimation?.value ?? 8.0) * 0.3,
+                        ),
+                        spreadRadius: _isHovered ? 2 : 0,
+                      ),
+                      if (_isHovered)
+                        BoxShadow(
+                          color: theme.primaryColor.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                    ],
                   ),
-                );
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16.0), // Slightly reduced padding
-                child: Column(
-                  mainAxisSize: MainAxisSize
-                      .min, // Column should shrink-wrap its content vertically
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      // This is the problematic row, line ~123
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: theme.colorScheme.primaryContainer
-                              .withOpacity(0.7),
-                          foregroundColor: theme.colorScheme.onPrimaryContainer,
-                          radius: 28, // Slightly smaller avatar
-                          child: Text(
-                            logoChar,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 22,
-                            ), // Slightly smaller font for logo
-                          ),
-                        ),
-                        const SizedBox(width: 14), // Slightly reduced spacing
-                        Expanded(
-                          // This is the flexible child
-                          child: LayoutBuilder(
-                            // REQUIRED: Constrain the inner Column for Text widgets
-                            builder: (context, constraints) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    jobTitle,
-                                    style: TextStyle(
-                                      fontSize:
-                                          19, // Slightly smaller job title
-                                      fontWeight: FontWeight.w800, // Extra bold
-                                      color: theme.colorScheme.onSurface,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTapDown: (_) => _animationController?.forward(),
+                      onTapUp: (_) => _animationController?.reverse(),
+                      onTapCancel: () => _animationController?.reverse(),
+                      splashColor: theme.primaryColor.withOpacity(0.1),
+                      highlightColor: theme.primaryColor.withOpacity(0.05),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        widget.onTap?.call();
+
+                        Navigator.push(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    JobDetailScreen(
+                                      job: widget.job,
+                                      jobId: widget.jobId,
                                     ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(
-                                    height: 4,
-                                  ), // Slightly reduced spacing
-                                  Text(
-                                    company,
-                                    style: TextStyle(
-                                      fontSize:
-                                          14, // Slightly smaller company name
-                                      color: theme
-                                          .colorScheme
-                                          .onSurfaceVariant, // More muted color
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                        // Bookmark Icon - ensure user is logged in
-                        if (widget.jobId != null &&
-                            authProvider.state.user != null)
-                          Align(
-                            // Use Align to position the icon if needed, though IconButton is usually fine
-                            alignment: Alignment.topRight,
-                            child: IconButton(
-                              icon: Icon(
-                                _isBookmarked
-                                    ? Icons.bookmark_sharp
-                                    : Icons.bookmark_border_sharp,
-                                size: 26, // Slightly smaller icon
-                              ),
-                              color: _isBookmarked
-                                  ? theme
-                                        .colorScheme
-                                        .tertiary // A distinct accent color for bookmark
-                                  : theme.colorScheme.onSurface.withOpacity(
-                                      0.5,
-                                    ), // Lighter grey when not bookmarked
-                              onPressed: () async {
-                                // Direct calls to add/remove bookmark
-                                if (authProvider.state.user == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Please log in to save jobs.',
-                                        style: TextStyle(
-                                          color: theme.colorScheme.onError,
-                                        ),
-                                      ),
-                                      backgroundColor: theme.colorScheme.error,
-                                      duration: const Duration(seconds: 2),
+                            transitionsBuilder:
+                                (
+                                  context,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) {
+                                  const begin = Offset(1.0, 0.0);
+                                  const end = Offset.zero;
+                                  const curve = Curves.easeInOutCubic;
+
+                                  var tween = Tween(
+                                    begin: begin,
+                                    end: end,
+                                  ).chain(CurveTween(curve: curve));
+
+                                  return SlideTransition(
+                                    position: animation.drive(tween),
+                                    child: FadeTransition(
+                                      opacity: animation,
+                                      child: child,
                                     ),
                                   );
-                                  return;
-                                }
-                                if (_isBookmarked) {
-                                  await authProvider.removeBookmark(
-                                    widget.jobId!,
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Job unsaved.',
-                                        style: TextStyle(
-                                          color: theme.colorScheme.onSecondary,
-                                        ),
-                                      ),
-                                      backgroundColor:
-                                          theme.colorScheme.secondary,
-                                      duration: const Duration(seconds: 1),
-                                    ),
-                                  );
-                                } else {
-                                  await authProvider.addBookmark(
-                                    widget.jobId!,
-                                    widget.job,
-                                  ); // Pass the full job data
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Job saved!',
-                                        style: TextStyle(
-                                          color: theme.colorScheme.onSecondary,
-                                        ),
-                                      ),
-                                      backgroundColor:
-                                          theme.colorScheme.secondary,
-                                      duration: const Duration(seconds: 1),
-                                    ),
-                                  );
-                                }
-                                // The _listenToBookmarkStatus stream will automatically update _isBookmarked state.
-                                // If the parent needs to know, call the callback:
-                                widget.onBookmarkToggled?.call(
-                                  widget.jobId!,
-                                  !_isBookmarked,
-                                );
-                              },
+                                },
+                            transitionDuration: const Duration(
+                              milliseconds: 350,
                             ),
                           ),
-                      ],
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0), // Reduced padding
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Enhanced Company Avatar
+                                Hero(
+                                  tag:
+                                      'company-avatar-${widget.jobId ?? company}-${widget.hashCode}',
+                                  child: Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          theme.primaryColor.withOpacity(0.8),
+                                          theme.primaryColor,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: theme.primaryColor.withOpacity(
+                                            0.3,
+                                          ),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        logoChar,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 24,
+                                          color: theme.colorScheme.onPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        jobTitle,
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w700,
+                                          color: theme.colorScheme.onSurface,
+                                          height: 1.2,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.business_rounded,
+                                            size: 16,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              company,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Enhanced Bookmark Button
+                                if (widget.jobId != null &&
+                                    authProvider.state.user != null)
+                                  ScaleTransition(
+                                    scale:
+                                        _bookmarkScaleAnimation ??
+                                        const AlwaysStoppedAnimation(1.0),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: _isBookmarked
+                                            ? theme.primaryColor.withOpacity(
+                                                0.1,
+                                              )
+                                            : theme
+                                                  .colorScheme
+                                                  .surfaceContainerHighest
+                                                  .withOpacity(0.3),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: _isBookmarked
+                                              ? theme.primaryColor.withOpacity(
+                                                  0.3,
+                                                )
+                                              : theme.colorScheme.outline
+                                                    .withOpacity(0.2),
+                                        ),
+                                      ),
+                                      child: IconButton(
+                                        icon: Icon(
+                                          _isBookmarked
+                                              ? Icons.bookmark_rounded
+                                              : Icons.bookmark_outline_rounded,
+                                          size: 24,
+                                        ),
+                                        color: _isBookmarked
+                                            ? theme.primaryColor
+                                            : theme.colorScheme.onSurface
+                                                  .withOpacity(0.6),
+                                        onPressed: () => _handleBookmarkTap(
+                                          authProvider,
+                                          theme,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 16), // Reduced spacing
+                            // Enhanced Info Chips with better wrapping
+                            Flexible(
+                              child: Wrap(
+                                spacing: 8.0, // Reduced spacing
+                                runSpacing: 8.0, // Reduced spacing
+                                children: [
+                                  _buildEnhancedInfoChip(
+                                    context,
+                                    Icons.location_on_rounded,
+                                    location,
+                                    theme.colorScheme.secondary,
+                                  ),
+                                  _buildEnhancedInfoChip(
+                                    context,
+                                    Icons.work_outline_rounded,
+                                    jobType,
+                                    theme.primaryColor,
+                                  ),
+                                  _buildEnhancedInfoChip(
+                                    context,
+                                    Icons.payments_rounded,
+                                    salary,
+                                    theme.colorScheme.tertiary,
+                                  ),
+                                  _buildEnhancedInfoChip(
+                                    context,
+                                    Icons.trending_up_rounded,
+                                    difficultyRank,
+                                    theme.colorScheme.error,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 20), // Increased vertical spacing
-
-                    Wrap(
-                      spacing:
-                          8.0, // Slightly reduced horizontal spacing for chips
-                      runSpacing:
-                          8.0, // Slightly reduced vertical spacing for chips
-                      children: [
-                        _buildInfoChip(
-                          context,
-                          Icons
-                              .location_on_rounded, // Rounded icon for consistency
-                          location,
-                          theme.colorScheme.onSurface,
-                          theme.colorScheme.secondary,
-                        ),
-                        _buildInfoChip(
-                          context,
-                          Icons.work_rounded, // Rounded icon
-                          jobType,
-                          theme.colorScheme.onSurface,
-                          theme.colorScheme.primary,
-                        ),
-                        _buildInfoChip(
-                          context,
-                          Icons.attach_money_rounded, // Rounded icon
-                          salary,
-                          theme.colorScheme.onSurface,
-                          theme.colorScheme.tertiary,
-                        ),
-                        _buildInfoChip(
-                          context,
-                          Icons.bar_chart_rounded, // Rounded icon
-                          'Difficulty: $difficultyRank',
-                          theme.colorScheme.onSurface,
-                          theme
-                              .colorScheme
-                              .error, // Stronger color for difficulty
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  // Helper method to create info chips
-  Widget _buildInfoChip(
+  Future<void> _handleBookmarkTap(
+    MyAuthProvider authProvider,
+    ThemeData theme,
+  ) async {
+    HapticFeedback.mediumImpact();
+
+    // Animate bookmark button safely
+    if (_bookmarkAnimationController != null) {
+      _bookmarkAnimationController!.forward().then((_) {
+        _bookmarkAnimationController!.reverse();
+      });
+    }
+
+    if (authProvider.state.user == null) {
+      _showSnackBar(
+        'Please log in to save jobs.',
+        theme.colorScheme.error,
+        theme.colorScheme.onError,
+        Icons.login_rounded,
+      );
+      return;
+    }
+
+    try {
+      if (_isBookmarked) {
+        await authProvider.removeBookmark(widget.jobId!);
+        _showSnackBar(
+          'Job removed from saved list',
+          theme.colorScheme.surfaceContainerHighest,
+          theme.colorScheme.onSurface,
+          Icons.bookmark_remove_rounded,
+        );
+      } else {
+        await authProvider.addBookmark(widget.jobId!, widget.job);
+        _showSnackBar(
+          'Job saved successfully!',
+          theme.primaryColor,
+          theme.colorScheme.onPrimary,
+          Icons.bookmark_added_rounded,
+        );
+      }
+      widget.onBookmarkToggled?.call(widget.jobId!, !_isBookmarked);
+    } catch (e) {
+      _showSnackBar(
+        'Something went wrong. Please try again.',
+        theme.colorScheme.error,
+        theme.colorScheme.onError,
+        Icons.error_outline_rounded,
+      );
+    }
+  }
+
+  void _showSnackBar(
+    String message,
+    Color backgroundColor,
+    Color textColor,
+    IconData icon,
+  ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: textColor, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget _buildEnhancedInfoChip(
     BuildContext context,
     IconData icon,
     String text,
-    Color textColor,
-    Color iconColor,
+    Color accentColor,
   ) {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 7,
-      ), // Smaller padding for chips
+        horizontal: 10,
+        vertical: 6,
+      ), // Reduced padding
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(
-          0.35,
-        ), // Lighter background for chips
-        borderRadius: BorderRadius.circular(
-          16,
-        ), // Slightly less rounded for smaller size
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.15),
-          width: 1,
-        ),
+        color: accentColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16), // Smaller border radius
+        border: Border.all(color: accentColor.withOpacity(0.2), width: 1),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.shadow.withOpacity(0.05),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
+            color: accentColor.withOpacity(0.1),
+            blurRadius: 3, // Reduced blur
+            offset: const Offset(0, 1), // Reduced offset
           ),
         ],
       ),
       child: Row(
-        mainAxisSize:
-            MainAxisSize.min, // Ensure chips only take up needed space
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             icon,
-            size: 18,
-            color: iconColor,
-          ), // Slightly smaller icon in chip
-          const SizedBox(width: 6), // Slightly reduced spacing
+            size: 14, // Smaller icon
+            color: accentColor,
+          ),
+          const SizedBox(width: 4), // Reduced spacing
           Flexible(
-            // Crucial for preventing overflow in chips if text is long
             child: Text(
               text,
               style: TextStyle(
-                fontSize: 12.5, // Slightly smaller font for chips
-                color: textColor.withOpacity(0.9), // Slightly muted text color
-                fontWeight: FontWeight.w600, // Semi-bold
+                fontSize: 12, // Smaller font
+                color: theme.colorScheme.onSurface.withOpacity(0.85),
+                fontWeight: FontWeight.w600,
               ),
-              overflow: TextOverflow.ellipsis, // Truncate text if it's too long
-              maxLines: 1, // Ensure it's a single line
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ],

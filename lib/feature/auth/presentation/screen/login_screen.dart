@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         return Scaffold(
           resizeToAvoidBottomInset: true,
-          backgroundColor: Theme.of(context).colorScheme.background,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -127,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontSize: 15,
                           color: Theme.of(
                             context,
-                          ).colorScheme.onBackground.withOpacity(0.7),
+                          ).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontWeight: FontWeight.w600,
                           color: Theme.of(
                             context,
-                          ).colorScheme.onBackground.withOpacity(0.9),
+                          ).colorScheme.onSurface.withOpacity(0.9),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -157,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontWeight: FontWeight.w600,
                           color: Theme.of(
                             context,
-                          ).colorScheme.onBackground.withOpacity(0.9),
+                          ).colorScheme.onSurface.withOpacity(0.9),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -216,9 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               "Don't have an account? ",
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onBackground,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                             GestureDetector(

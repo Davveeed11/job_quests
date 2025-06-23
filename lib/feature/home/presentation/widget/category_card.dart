@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import for HapticFeedback
 
 /// Helper Widget for Category Cards (for explore categories)
 class CategoryCard extends StatefulWidget {
   final String name;
   final IconData icon;
   final int jobCount; // Added jobCount parameter
+  final VoidCallback? onTap; // New: Callback for when the card is tapped
 
   const CategoryCard({
     super.key,
     required this.name,
     required this.icon,
     required this.jobCount, // jobCount is now required
+    this.onTap, // New: Accept the onTap callback
   });
 
   @override
@@ -30,8 +33,15 @@ class _CategoryCardState extends State<CategoryCard> {
     setState(() {
       _scale = 1.0;
     });
-    // This SnackBar is for demonstration. In a real app, this would likely
-    // trigger navigation to a category-specific job listing page.
+    HapticFeedback.lightImpact(); // Added haptic feedback for a better feel
+
+    // Call the external onTap callback provided by the parent (e.g., Home screen)
+    widget.onTap?.call();
+
+    // This SnackBar is for demonstration/debugging purposes.
+    // In a real app, the `onTap` callback (above) would typically
+    // handle navigation to a category-specific job listing page,
+    // and you might remove this SnackBar.
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Exploring ${widget.name} jobs')));
@@ -49,6 +59,11 @@ class _CategoryCardState extends State<CategoryCard> {
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
+      onTap: () {
+        // You can also place widget.onTap?.call() here directly
+        // if you want the main tap action to be handled only once.
+        // For the visual scale animation, onTapUp is usually preferred.
+      },
       child: AnimatedScale(
         scale: _scale,
         duration: const Duration(milliseconds: 150),
@@ -64,7 +79,6 @@ class _CategoryCardState extends State<CategoryCard> {
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
-              // Changed from Row to Column
               mainAxisAlignment:
                   MainAxisAlignment.center, // Center content vertically
               crossAxisAlignment:

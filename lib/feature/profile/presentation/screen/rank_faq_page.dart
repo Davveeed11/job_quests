@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:my_job_quest/feature/splashscreen/domain/rank_dart.dart'; // Ensure this path is correct
+import 'package:my_job_quest/feature/splashscreen/domain/rank_dart.dart';
 
 class RankFaqPage extends StatelessWidget {
   final List<RankData>? ranks;
 
   const RankFaqPage({super.key, this.ranks});
 
-  // Helper to format prices consistently
   String _formatPrice(int price) {
     if (price >= 1000000) {
       return '₦${(price / 1000000).toStringAsFixed(1)}M';
@@ -18,8 +17,7 @@ class RankFaqPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = Theme.of(context).colorScheme.onBackground;
-    // final accentColor = Theme.of(context).colorScheme.primary;
+    final textColor = Theme.of(context).colorScheme.onSurface;
 
     return Scaffold(
       appBar: AppBar(
@@ -28,8 +26,8 @@ class RankFaqPage extends StatelessWidget {
           style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Theme.of(context).colorScheme.surface,
-        iconTheme: IconThemeData(color: textColor), // Set back button color
-        elevation: 1, // Subtle shadow for the app bar
+        iconTheme: IconThemeData(color: textColor),
+        elevation: 1,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -37,7 +35,7 @@ class RankFaqPage extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Theme.of(context).colorScheme.background,
+              Theme.of(context).colorScheme.surface,
               Theme.of(context).colorScheme.surface.withOpacity(0.5),
             ],
           ),
@@ -57,7 +55,11 @@ class RankFaqPage extends StatelessWidget {
             const SizedBox(height: 24),
             _buildSectionTitle(context, 'Job Quest Ranks Explained'),
             const SizedBox(height: 12),
-            ...ranks!.map((rank) => _buildRankFaqTile(context, rank)),
+            // FIX IS HERE: Use the null-aware operator `?` with `toList()`
+            // If ranks is null, it defaults to an empty list `[]`.
+            ...(ranks ?? []).map(
+              (rank) => _buildRankFaqTile(context, rank),
+            ), // Added .toList() here
             const SizedBox(height: 24),
             _buildSectionTitle(context, 'General Questions'),
             const SizedBox(height: 12),
@@ -95,7 +97,7 @@ class RankFaqPage extends StatelessWidget {
         style: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.onBackground,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
         textAlign: TextAlign.center,
       ),
@@ -108,7 +110,6 @@ class RankFaqPage extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Theme(
-        // Override the default expansion tile theme to use rank color
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           collapsedIconColor: rank.color,

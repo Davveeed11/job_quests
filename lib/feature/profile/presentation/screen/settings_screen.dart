@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:my_job_quest/feature/about/about_app_screen.dart'; // Ensure correct path
+import 'package:my_job_quest/feature/about/privacy_policy_screen.dart'; // Ensure correct path
 import 'package:my_job_quest/feature/auth/presentation/manager/my_auth_provider.dart';
-import 'package:my_job_quest/feature/auth/presentation/screen/login_or_register.dart';
+import 'package:my_job_quest/feature/auth/presentation/screen/login_or_register.dart'; // Used for potential explicit navigation (though we remove it)
 import 'package:my_job_quest/feature/core/theme/theme_provider.dart';
+import 'package:my_job_quest/feature/profile/presentation/screen/disclaimer_screen.dart';
 import 'package:my_job_quest/feature/profile/presentation/screen/rank_faq_page.dart';
 import 'package:provider/provider.dart';
 
@@ -18,7 +21,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final authProvider = Provider.of<MyAuthProvider>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
 
-    // Get the user's display name, or a default if not available
     final String accountName =
         authProvider.state.user?.displayName ?? 'Job Seeker';
     final String userEmail = authProvider.state.user?.email ?? 'No Email';
@@ -27,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : 'Not set';
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(
           'My Profile',
@@ -38,71 +40,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         backgroundColor: Theme.of(context).colorScheme.primary,
         elevation: 0,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onPrimary,
+        ), // Changed to onPrimary for AppBar icons
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Account Name Section
             GestureDetector(
-              // onTap: () {
-              //   Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) {
-              //         return ProfileScreen();
-              //       },
-              //     ),
-              //   );
-              // },
-              child: Container(
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      child: Text(
-                        accountName.isNotEmpty
-                            ? accountName[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSecondary,
-                        ),
+              // onTap: () { /* Add navigation to ProfileScreen if it exists */ },
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 36,
+                    backgroundColor: Theme.of(context).colorScheme.secondary,
+                    child: Text(
+                      accountName.isNotEmpty
+                          ? accountName[0].toUpperCase()
+                          : '?',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSecondary,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          accountName,
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onBackground,
-                          ),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        accountName,
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
-                        Text(
-                          userEmail,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onBackground.withOpacity(0.7),
-                          ),
+                      ),
+                      Text(
+                        userEmail,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 32),
 
-            // Theme Switcher Section
             Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
@@ -167,21 +159,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ],
                     selectedItemBuilder: (BuildContext context) {
+                      // This ensures the selected text color matches the theme
                       return <Widget>[
                         Text(
-                          'System Default',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Light Mode',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Dark Mode',
+                          themeProvider.themeMode == ThemeMode.system
+                              ? 'System Default'
+                              : themeProvider.themeMode == ThemeMode.light
+                              ? 'Light Mode'
+                              : 'Dark Mode',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface,
                           ),
@@ -238,7 +223,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
 
-            // General Settings Section (Example)
             Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
@@ -275,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
+                        const SnackBar(
                           content: Text('Notification settings coming soon!'),
                         ),
                       );
@@ -308,8 +292,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ).colorScheme.onSurface.withOpacity(0.6),
                     ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Privacy Policy coming soon!')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) {
+                            return const PrivacyPolicyScreen(); // Added const
+                          },
+                        ),
                       );
                     },
                   ),
@@ -321,7 +310,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       context,
                     ).colorScheme.onSurface.withOpacity(0.1),
                   ),
-                  // FAQ Tile
                   ListTile(
                     leading: Icon(
                       Icons.help_outline,
@@ -359,6 +347,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   ListTile(
                     leading: Icon(
+                      Icons.warning_amber_outlined,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: Text(
+                      'Important Disclaimer',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Read about app limitations and money handling.',
+                      style: TextStyle(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const DisclaimerScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  Divider(
+                    height: 0,
+                    indent: 20,
+                    endIndent: 20,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.1),
+                  ),
+                  ListTile(
+                    leading: Icon(
                       Icons.info,
                       color: Theme.of(context).colorScheme.primary,
                     ),
@@ -376,8 +405,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ).colorScheme.onSurface.withOpacity(0.6),
                     ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('About app info coming soon!')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) {
+                            return const AboutAppScreen(); // Added const
+                          },
+                        ),
                       );
                     },
                   ),
@@ -389,9 +423,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Logout Button
             Center(
               child: SizedBox(
-                width:
-                    MediaQuery.of(context).size.width *
-                    0.7, // Make it a bit narrower
+                width: MediaQuery.of(context).size.width * 0.7,
                 child: ElevatedButton.icon(
                   icon: authProvider.state.isLoading
                       ? const SizedBox(
@@ -465,19 +497,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ) ??
                               false;
                           if (confirmSignOut) {
-                            await authProvider.signout();
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (context) => const LoginOrRegister(),
-                              ),
-                              (Route<dynamic> route) => false,
-                            );
+                            // Call signOut, but DO NOT navigate explicitly here.
+                            // AuthChanges will handle navigation once Firebase Auth state changes.
+                            await authProvider.signOut();
+                            // Optional: Show a temporary success message if needed, but no navigation.
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Logged out successfully!'),
+                                ),
+                              );
+                            }
                           }
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.error, // Use error color for logout
+                    backgroundColor: Theme.of(context).colorScheme.error,
                     foregroundColor: Theme.of(context).colorScheme.onError,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

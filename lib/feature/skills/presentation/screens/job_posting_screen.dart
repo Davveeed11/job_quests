@@ -100,7 +100,9 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
 
   @override
   void dispose() {
-    _controllers.values.forEach((controller) => controller.dispose());
+    for (var controller in _controllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -109,7 +111,7 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
     return Consumer<MyAuthProvider>(
       builder: (context, provider, child) {
         return Scaffold(
-          backgroundColor: Theme.of(context).colorScheme.background,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           appBar: _buildAppBar(context),
           body: _buildBody(context, provider),
         );
@@ -147,6 +149,8 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
             const SizedBox(height: 24),
             ..._buildFormFields(context, provider),
             _buildErrorMessage(context, provider),
+            const SizedBox(height: 24), // Added spacing before escrow section
+            _buildEscrowDemoSection(context), // New escrow demo section
             const SizedBox(height: 32),
             _buildSubmitButton(context, provider),
             const SizedBox(height: 20),
@@ -161,7 +165,7 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
       'Share a job opportunity with the community.',
       style: TextStyle(
         fontSize: 16,
-        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
+        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
       ),
     );
   }
@@ -328,7 +332,7 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
       style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.9),
+        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
       ),
     );
   }
@@ -349,6 +353,54 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
         ),
         const SizedBox(height: 16),
       ],
+    );
+  }
+
+  // NEW: Escrow Demo Section
+  Widget _buildEscrowDemoSection(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer.withOpacity(
+          0.2,
+        ), // A subtle background color
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.tertiary.withOpacity(0.5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons
+                .account_balance_wallet_outlined, // Icon to signify payment/security
+            color: theme.colorScheme.tertiary,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Feature Preview: Secure Escrow Payments',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.tertiary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'To ensure fair and secure transactions between employers and freelancers, this platform will feature an escrow system for job payments. Payments will be held securely until job completion and approval.\n\n*Note: This is an MVP demo, and no actual money transactions are handled at this stage.*',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -403,7 +455,9 @@ class _JobPostingScreenState extends State<JobPostingScreen> {
   }
 
   void _clearForm() {
-    _controllers.values.forEach((controller) => controller.clear());
+    for (var controller in _controllers.values) {
+      controller.clear();
+    }
     setState(() {
       _selectedDifficultyRank = null;
       _selectedJobType = null;

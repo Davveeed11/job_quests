@@ -12,7 +12,7 @@ class SavedJobsScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
@@ -36,13 +36,13 @@ class SavedJobsScreen extends StatelessWidget {
                     Icon(
                       Icons.bookmark_border,
                       size: 80,
-                      color: theme.colorScheme.onBackground.withOpacity(0.5),
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
                     ),
                     const SizedBox(height: 16),
                     Text(
                       'Sign In to Save Jobs',
                       style: theme.textTheme.headlineSmall?.copyWith(
-                        color: theme.colorScheme.onBackground,
+                        color: theme.colorScheme.onSurface,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -50,7 +50,7 @@ class SavedJobsScreen extends StatelessWidget {
                     Text(
                       'Log in to your account to view and manage your saved job listings.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onBackground.withOpacity(0.7),
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -73,9 +73,6 @@ class SavedJobsScreen extends StatelessWidget {
                 }
 
                 if (snapshot.hasError) {
-                  print(
-                    'Error fetching saved jobs: ${snapshot.error}',
-                  ); // For debugging
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
@@ -91,7 +88,7 @@ class SavedJobsScreen extends StatelessWidget {
                           Text(
                             'Error Loading Saved Jobs',
                             style: theme.textTheme.headlineSmall?.copyWith(
-                              color: theme.colorScheme.onBackground,
+                              color: theme.colorScheme.onSurface,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -99,7 +96,7 @@ class SavedJobsScreen extends StatelessWidget {
                           Text(
                             'Something went wrong while fetching your saved jobs. Please try again later.',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onBackground.withOpacity(
+                              color: theme.colorScheme.onSurface.withOpacity(
                                 0.7,
                               ),
                             ),
@@ -124,15 +121,13 @@ class SavedJobsScreen extends StatelessWidget {
                           Icon(
                             Icons.bookmark_add,
                             size: 80,
-                            color: theme.colorScheme.onBackground.withOpacity(
-                              0.5,
-                            ),
+                            color: theme.colorScheme.onSurface.withOpacity(0.5),
                           ),
                           const SizedBox(height: 16),
                           Text(
                             'No Saved Jobs Yet!',
                             style: theme.textTheme.headlineSmall?.copyWith(
-                              color: theme.colorScheme.onBackground,
+                              color: theme.colorScheme.onSurface,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -140,7 +135,7 @@ class SavedJobsScreen extends StatelessWidget {
                           Text(
                             'Bookmark jobs from the home screen to see them here.',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onBackground.withOpacity(
+                              color: theme.colorScheme.onSurface.withOpacity(
                                 0.7,
                               ),
                             ),

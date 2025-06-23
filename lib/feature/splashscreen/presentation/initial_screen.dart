@@ -1,4 +1,3 @@
-// my_job_quest/feature/core/screens/initial_screen.dart
 import 'package:flutter/material.dart';
 import 'package:my_job_quest/feature/splashscreen/rank_onboarding_slider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,7 +81,7 @@ class _InitialScreenState extends State<InitialScreen> {
     // Show loading indicator while checking SharedPreferences
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.background,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         body: const Center(child: CircularProgressIndicator()),
       );
     }

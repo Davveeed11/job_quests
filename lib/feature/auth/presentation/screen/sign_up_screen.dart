@@ -40,7 +40,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           resizeToAvoidBottomInset: true,
           backgroundColor: Theme.of(
             context,
-          ).colorScheme.background, // Use theme background
+          ).colorScheme.surface, // Use theme background
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -73,7 +73,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           fontSize: 15,
                           color: Theme.of(
                             context,
-                          ).colorScheme.onBackground.withOpacity(0.7),
+                          ).colorScheme.onSurface.withOpacity(0.7),
                         ), // Use onBackground
                       ),
                       const SizedBox(height: 24), // Reduced spacing
@@ -82,7 +82,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onBackground
+                          color: Theme.of(context).colorScheme.onSurface
                               .withOpacity(0.9), // Use onBackground
                         ),
                       ),
@@ -100,7 +100,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onBackground
+                          color: Theme.of(context).colorScheme.onSurface
                               .withOpacity(0.9), // Use onBackground
                         ),
                       ),
@@ -118,7 +118,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onBackground
+                          color: Theme.of(context).colorScheme.onSurface
                               .withOpacity(0.9), // Use onBackground
                         ),
                       ),
@@ -138,7 +138,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.onBackground
+                          color: Theme.of(context).colorScheme.onSurface
                               .withOpacity(0.9), // Use onBackground
                         ),
                       ),
@@ -207,9 +207,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               "Already have an account? ",
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onBackground,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ), // Use onBackground
                             ),
                             GestureDetector(

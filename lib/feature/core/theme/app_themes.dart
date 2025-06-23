@@ -13,9 +13,7 @@ class AppThemes {
       secondary: Color(0xFF4CAF50), // Material Green 500 - for success/action
       onSecondary: Colors.white,
       surface: Colors.white, // Cards, elevated elements
-      onSurface: Colors.black87, // Text on surfaces
-      background: Color(0xFFF0F2F5), // Very light grey background
-      onBackground: Colors.black87, // Text on background
+      onSurface: Colors.black87, // Text on background
       error: Color(0xFFD32F2F), // Standard Material Red 700
       onError: Colors.white,
     ),
@@ -94,9 +92,7 @@ class AppThemes {
       ), // Material Green 300 - Softer green for dark mode
       onSecondary: Colors.black, // Dark text on light green for contrast
       surface: Color(0xFF2C2C2C), // Dark grey for cards, elevated elements
-      onSurface: Colors.white70, // Light text on dark surfaces
-      background: Color(0xFF1A1A1A), // Very dark grey background
-      onBackground: Colors.white70, // Text on background
+      onSurface: Colors.white70, // Text on background
       error: Color(0xFFEF9A9A), // Lighter red for visibility on dark background
       onError: Colors.black,
     ),
